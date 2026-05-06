@@ -1,0 +1,38 @@
+<Project>
+
+  <PropertyGroup>
+    <SidemarkBuildTaskAssembly Condition="'$(SidemarkBuildTaskAssembly)' == ''">$(MSBuildThisFileDirectory)..\bin\$(Configuration)\netstandard2.0\Sidemark.Build.dll</SidemarkBuildTaskAssembly>
+    <SidemarkDisable Condition="'$(SidemarkDisable)' == ''">false</SidemarkDisable>
+  </PropertyGroup>
+
+  <UsingTask TaskName="Sidemark.Build.RewriteSidemarkTask"
+             AssemblyFile="$(SidemarkBuildTaskAssembly)" />
+
+  <Target Name="SidemarkRewrite"
+          BeforeTargets="CoreCompile"
+          Condition="'$(SidemarkDisable)' != 'true'">
+
+    <PropertyGroup>
+      <SidemarkOutputDirectory Condition="'$(SidemarkOutputDirectory)' == ''">$(IntermediateOutputPath)sidemark\</SidemarkOutputDirectory>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(SidemarkOutputDirectory)" />
+
+    <RewriteSidemarkTask
+        Sources="@(Compile)"
+        OutputDirectory="$(SidemarkOutputDirectory)"
+        ActivitySourceExpression="$(SidemarkActivitySource)"
+        Disabled="$(SidemarkDisable)">
+      <Output TaskParameter="RewrittenSources" ItemName="_SidemarkRewritten" />
+      <Output TaskParameter="OriginalSources" ItemName="_SidemarkOriginal" />
+    </RewriteSidemarkTask>
+
+    <ItemGroup>
+      <Compile Remove="@(_SidemarkOriginal)" />
+      <Compile Include="@(_SidemarkRewritten)" />
+      <FileWrites Include="@(_SidemarkRewritten)" />
+    </ItemGroup>
+
+  </Target>
+
+</Project>

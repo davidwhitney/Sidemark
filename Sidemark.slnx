@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/HelloWorldOTel/HelloWorldOTel.csproj" />
+    <Project Path="examples/HelloWorldOTel.Sidemark/HelloWorldOTel.Sidemark.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Sidemark/Sidemark.csproj" />
+    <Project Path="src/Sidemark.Analyzer/Sidemark.Analyzer.csproj" />
+    <Project Path="src/Sidemark.Build/Sidemark.Build.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Sidemark.Tests/Sidemark.Tests.csproj" />
+  </Folder>
+</Solution>

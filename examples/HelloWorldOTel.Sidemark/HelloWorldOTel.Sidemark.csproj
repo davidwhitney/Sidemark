@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>HelloWorldOTel.Sidemark</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.15.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sidemark\Sidemark.csproj" />
+    <ProjectReference Include="..\..\src\Sidemark.Build\Sidemark.Build.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="None" />
+    <ProjectReference Include="..\..\src\Sidemark.Analyzer\Sidemark.Analyzer.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\Sidemark.Build\build\Sidemark.targets" />
+
+</Project>
