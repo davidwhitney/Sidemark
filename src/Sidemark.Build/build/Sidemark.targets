@@ -10,7 +10,7 @@
 
   <Target Name="SidemarkRewrite"
           BeforeTargets="CoreCompile"
-          Condition="'$(SidemarkDisable)' != 'true'">
+          Condition="'$(SidemarkDisable)' != 'true' And '$(DesignTimeBuild)' != 'true' And '$(BuildingProject)' != 'false'">
 
     <PropertyGroup>
       <SidemarkOutputDirectory Condition="'$(SidemarkOutputDirectory)' == ''">$(IntermediateOutputPath)sidemark\</SidemarkOutputDirectory>
