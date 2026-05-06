@@ -2,6 +2,7 @@
   <Folder Name="/examples/">
     <Project Path="examples/HelloWorldOTel/HelloWorldOTel.csproj" />
     <Project Path="examples/HelloWorldOTel.Sidemark/HelloWorldOTel.Sidemark.csproj" />
+    <Project Path="examples/Sidemark.AnalyzerDemo/Sidemark.AnalyzerDemo.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Sidemark/Sidemark.csproj" />

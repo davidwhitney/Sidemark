@@ -2,9 +2,7 @@
 // Open this file in an IDE: each misused //? or //! gets a squiggle.
 // During `dotnet build` they appear as warnings SDM001-SDM006.
 
-using System;
-
-namespace HelloWorldOTel.Sidemark.Demo;
+namespace Sidemark.AnalyzerDemo;
 
 public class AnalyzerDemoBadUsage
 {
