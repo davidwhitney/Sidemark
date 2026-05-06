@@ -9,8 +9,44 @@
     <AssemblyName>Sidemark</AssemblyName>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <PackageId>Sidemark</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Annotate methods with //? comments and Sidemark rewrites them into OpenTelemetry Activity instrumentation at build time. Ships the runtime attributes, the Roslyn analyzer, and the MSBuild rewriter as a single package.</Description>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackSidemarkExtras</TargetsForTfmSpecificContentInPackage>
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
   </ItemGroup>
+
+  <!-- Sidemark.Build references Sidemark, so we cannot ProjectReference it back without a cycle.
+       Build the analyzer and build-task projects explicitly before pack picks up their outputs. -->
+  <Target Name="BuildSidemarkExtras" BeforeTargets="GenerateNuspec">
+    <MSBuild Projects="..\Sidemark.Analyzer\Sidemark.Analyzer.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+    <MSBuild Projects="..\Sidemark.Build\Sidemark.Build.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
+
+  <Target Name="PackSidemarkExtras">
+    <ItemGroup>
+      <!-- Resolve task DLLs into a separate item first so the glob evaluates in this target. -->
+      <_SidemarkTaskFiles Include="..\Sidemark.Build\bin\$(Configuration)\netstandard2.0\*.dll" />
+      <TfmSpecificPackageFile Include="..\Sidemark.Analyzer\bin\$(Configuration)\netstandard2.0\Sidemark.Analyzer.dll">
+        <PackagePath>analyzers/dotnet/cs/</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_SidemarkTaskFiles)">
+        <PackagePath>tasks/netstandard2.0/</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="..\Sidemark.Build\build\Sidemark.targets">
+        <PackagePath>build/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
 
 </Project>

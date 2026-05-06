@@ -1,6 +1,9 @@
 <Project>
 
   <PropertyGroup>
+    <!-- Package layout: build/Sidemark.targets sits next to tasks/netstandard2.0/Sidemark.Build.dll -->
+    <SidemarkBuildTaskAssembly Condition="'$(SidemarkBuildTaskAssembly)' == '' And Exists('$(MSBuildThisFileDirectory)..\tasks\netstandard2.0\Sidemark.Build.dll')">$(MSBuildThisFileDirectory)..\tasks\netstandard2.0\Sidemark.Build.dll</SidemarkBuildTaskAssembly>
+    <!-- In-repo project-ref layout: src/Sidemark.Build/build/Sidemark.targets sits above bin/$(Configuration)/netstandard2.0/Sidemark.Build.dll -->
     <SidemarkBuildTaskAssembly Condition="'$(SidemarkBuildTaskAssembly)' == ''">$(MSBuildThisFileDirectory)..\bin\$(Configuration)\netstandard2.0\Sidemark.Build.dll</SidemarkBuildTaskAssembly>
     <SidemarkDisable Condition="'$(SidemarkDisable)' == ''">false</SidemarkDisable>
   </PropertyGroup>
