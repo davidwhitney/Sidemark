@@ -76,7 +76,8 @@ public static class SidemarkRewriter
         {
             ActivitySourceExpression = resolved.SourceExpression ?? opts.ActivitySourceExpression,
             Patterns = resolved.Patterns,
-            Disabled = opts.Disabled
+            Disabled = opts.Disabled,
+            SourceFilePath = opts.SourceFilePath
         };
     }
 

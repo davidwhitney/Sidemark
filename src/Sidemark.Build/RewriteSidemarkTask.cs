@@ -95,10 +95,20 @@ public sealed class RewriteSidemarkTask : MSBuildTask
 
             var source = sourceContents[item];
 
+            // Per-file options carry the source path so the rewriter can emit #line directives
+            // mapping the obj-folder output back to the original file for IDE debuggers.
+            var fileOptions = new SidemarkOptions
+            {
+                ActivitySourceExpression = options.ActivitySourceExpression,
+                Patterns = options.Patterns,
+                Disabled = options.Disabled,
+                SourceFilePath = path
+            };
+
             string output;
             try
             {
-                output = SidemarkRewriter.Rewrite(source, options);
+                output = SidemarkRewriter.Rewrite(source, fileOptions);
             }
             catch (Exception e)
             {
@@ -110,6 +120,11 @@ public sealed class RewriteSidemarkTask : MSBuildTask
             {
                 continue;
             }
+
+            // Prefix a #line 1 directive so anything outside modified method bodies (top-level statements,
+            // class/member declarations) also maps back to the original file in the PDB.
+            var pathForDirective = path.Replace("\\", "/").Replace("\"", "\\\"");
+            output = $"#line 1 \"{pathForDirective}\"\n{output}";
 
             var outputPath = Path.Combine(OutputDirectory, BuildOutputName(path));
             File.WriteAllText(outputPath, output);

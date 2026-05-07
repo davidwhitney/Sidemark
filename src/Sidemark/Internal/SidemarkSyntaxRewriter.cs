@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -7,6 +8,53 @@ namespace Sidemark.Internal;
 internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSyntaxRewriter
 {
     private DirectivePatterns Patterns => options.Patterns;
+
+    private bool EmitLineDirectives => !string.IsNullOrEmpty(options.SourceFilePath);
+
+    private SyntaxTriviaList HiddenLeading(SyntaxTriviaList indent)
+    {
+        if (!EmitLineDirectives) return indent;
+        // Drop any newlines from the indent: the directive provides its own line break, and we
+        // don't want a blank line between #line hidden and the synthetic statement that follows.
+        var whitespaceOnly = SyntaxFactory.TriviaList(indent.Where(t => t.IsKind(SyntaxKind.WhitespaceTrivia)));
+        return SyntaxFactory.ParseLeadingTrivia("#line hidden\n").AddRange(whitespaceOnly);
+    }
+
+    private StatementSyntax WrapOriginal(StatementSyntax stmt)
+    {
+        if (!EmitLineDirectives) return stmt;
+        var line = stmt.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+        var path = options.SourceFilePath!.Replace("\\", "/").Replace("\"", "\\\"");
+        var directive = SyntaxFactory.ParseLeadingTrivia($"#line {line} \"{path}\"\n");
+
+        // Insert the directive AFTER any leading newlines/blank-line trivia, so the line that
+        // immediately follows the directive is the statement itself (mapped to `line`), not a
+        // blank line that would consume `line` and shift the statement to `line + 1`.
+        var existing = stmt.GetLeadingTrivia();
+        var lastEol = -1;
+        for (var i = existing.Count - 1; i >= 0; i--)
+        {
+            if (existing[i].IsKind(SyntaxKind.EndOfLineTrivia))
+            {
+                lastEol = i;
+                break;
+            }
+        }
+
+        SyntaxTriviaList newLeading;
+        if (lastEol >= 0)
+        {
+            var before = SyntaxFactory.TriviaList(existing.Take(lastEol + 1));
+            var after = SyntaxFactory.TriviaList(existing.Skip(lastEol + 1));
+            newLeading = before.AddRange(directive).AddRange(after);
+        }
+        else
+        {
+            newLeading = directive.AddRange(existing);
+        }
+
+        return stmt.WithLeadingTrivia(newLeading);
+    }
 
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
@@ -163,11 +211,11 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         var prepended = new List<StatementSyntax>();
         if (createActivity)
         {
-            prepended.Add(BuildScopeStatement(activityName, sourceExpression).WithLeadingTrivia(indentTemplate));
+            prepended.Add(BuildScopeStatement(activityName, sourceExpression).WithLeadingTrivia(HiddenLeading(indentTemplate)));
         }
         if (entryEventName is { } evt)
         {
-            prepended.Add(BuildAddEvent(evt).WithLeadingTrivia(indentTemplate));
+            prepended.Add(BuildAddEvent(evt).WithLeadingTrivia(HiddenLeading(indentTemplate)));
         }
         prepended.AddRange(expanded.Statements);
         return expanded.WithStatements(SyntaxFactory.List(prepended));
@@ -214,7 +262,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
             var name = DirectiveMatcher.MatchEvent(t, Patterns);
             if (!string.IsNullOrEmpty(name))
             {
-                output.Add(BuildAddEvent(name!).WithLeadingTrivia(indent));
+                output.Add(BuildAddEvent(name!).WithLeadingTrivia(HiddenLeading(indent)));
             }
         }
         foreach (var t in stmt.GetTrailingTrivia())
@@ -222,11 +270,11 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
             var name = DirectiveMatcher.MatchEvent(t, Patterns);
             if (!string.IsNullOrEmpty(name))
             {
-                output.Add(BuildAddEvent(name!).WithLeadingTrivia(indent));
+                output.Add(BuildAddEvent(name!).WithLeadingTrivia(HiddenLeading(indent)));
             }
         }
 
-        output.Add(stmt);
+        output.Add(WrapOriginal(stmt));
 
         if (stmt is LocalDeclarationStatementSyntax localDecl)
         {
@@ -236,7 +284,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                 var p = DirectiveMatcher.MatchTag(t, Patterns);
                 if (p != null) tagPayloads.Add(p);
             }
-            
+
             foreach (var t in stmt.GetTrailingTrivia())
             {
                 var p = DirectiveMatcher.MatchTag(t, Patterns);
@@ -248,7 +296,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                 foreach (var v in localDecl.Declaration.Variables)
                 {
                     var key = string.IsNullOrEmpty(payload) ? v.Identifier.ValueText : payload!;
-                    output.Add(BuildSetTag(key, v.Identifier.ValueText).WithLeadingTrivia(indent));
+                    output.Add(BuildSetTag(key, v.Identifier.ValueText).WithLeadingTrivia(HiddenLeading(indent)));
                 }
             }
         }
@@ -314,7 +362,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                 : SyntaxFactory.TriviaList(SyntaxFactory.EndOfLine("\n"));
 
             var setStatus = BuildCatchSetStatus(visited.Declaration?.Identifier.ValueText)
-                .WithLeadingTrivia(indent);
+                .WithLeadingTrivia(outer.HiddenLeading(indent));
 
             var newStatements = new List<StatementSyntax> { setStatus };
             newStatements.AddRange(visited.Block.Statements);
