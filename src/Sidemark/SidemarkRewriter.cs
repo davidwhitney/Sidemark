@@ -8,7 +8,6 @@ namespace Sidemark;
 public sealed class ResolvedAssemblyConfiguration
 {
     public string? SourceExpression { get; set; }
-
     public DirectivePatterns Patterns { get; set; } = new();
 }
 
@@ -45,8 +44,13 @@ public static class SidemarkRewriter
         {
             roots.Add(CSharpSyntaxTree.ParseText(s).GetRoot());
         }
+        
         var resolved = ConfigurationResolver.TryResolve(roots);
-        if (resolved == null) return null;
+        if (resolved == null)
+        {
+            return null;
+        }
+        
         return new ResolvedAssemblyConfiguration
         {
             SourceExpression = resolved.SourceExpression,
@@ -63,7 +67,10 @@ public static class SidemarkRewriter
     private static SidemarkOptions MergeWithInFileConfig(SidemarkOptions opts, SyntaxNode root)
     {
         var resolved = ConfigurationResolver.TryResolve([root]);
-        if (resolved == null) return opts;
+        if (resolved == null)
+        {
+            return opts;
+        }
 
         return new SidemarkOptions
         {

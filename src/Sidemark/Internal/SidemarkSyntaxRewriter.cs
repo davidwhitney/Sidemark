@@ -4,16 +4,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Sidemark.Internal;
 
-internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
+internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSyntaxRewriter
 {
-    private readonly SidemarkOptions _options;
-
-    public SidemarkSyntaxRewriter(SidemarkOptions options)
-    {
-        _options = options;
-    }
-
-    private DirectivePatterns Patterns => _options.Patterns;
+    private DirectivePatterns Patterns => options.Patterns;
 
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
     {
@@ -33,12 +26,14 @@ internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
         var activityName = !string.IsNullOrEmpty(activityPayload) ? activityPayload! : node.Identifier.ValueText;
         var entryEventName = eventPayload is null ? null
             : !string.IsNullOrEmpty(eventPayload) ? eventPayload : node.Identifier.ValueText;
+        
         var sourceExpression = ResolveActivitySource(node);
 
         var newBody = ExpandBody(
             node.Body, activityName, sourceExpression,
             createActivity: activityPayload != null,
             entryEventName: entryEventName);
+        
         return node.WithBody(newBody);
     }
 
@@ -60,12 +55,14 @@ internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
         var activityName = !string.IsNullOrEmpty(activityPayload) ? activityPayload! : node.Identifier.ValueText;
         var entryEventName = eventPayload is null ? null
             : !string.IsNullOrEmpty(eventPayload) ? eventPayload : node.Identifier.ValueText;
+        
         var sourceExpression = ResolveActivitySource(node);
 
         var newBody = ExpandBody(
             node.Body, activityName, sourceExpression,
             createActivity: activityPayload != null,
             entryEventName: entryEventName);
+        
         return node.WithBody(newBody);
     }
 
@@ -144,10 +141,8 @@ internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
         return null;
     }
 
-    private string ResolveActivitySource(SyntaxNode node)
-    {
-        return ActivitySourceResolver.Resolve(node) ?? _options.ActivitySourceExpression;
-    }
+    private string ResolveActivitySource(SyntaxNode node) =>
+        ActivitySourceResolver.Resolve(node) ?? options.ActivitySourceExpression;
 
     private BlockSyntax ExpandBody(
         BlockSyntax body, string activityName, string sourceExpression,
@@ -241,6 +236,7 @@ internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
                 var p = DirectiveMatcher.MatchTag(t, Patterns);
                 if (p != null) tagPayloads.Add(p);
             }
+            
             foreach (var t in stmt.GetTrailingTrivia())
             {
                 var p = DirectiveMatcher.MatchTag(t, Patterns);
@@ -292,22 +288,15 @@ internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
     private static string Quote(string s) =>
         "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 
-    private sealed class DirectiveExpander : CSharpSyntaxRewriter
+    private sealed class DirectiveExpander(SidemarkSyntaxRewriter outer) : CSharpSyntaxRewriter
     {
-        private readonly SidemarkSyntaxRewriter _outer;
-
-        public DirectiveExpander(SidemarkSyntaxRewriter outer)
-        {
-            _outer = outer;
-        }
-
         public override SyntaxNode? VisitBlock(BlockSyntax node)
         {
             var visited = (BlockSyntax)base.VisitBlock(node)!;
             var expanded = new List<StatementSyntax>();
             foreach (var stmt in visited.Statements)
             {
-                _outer.AppendExpandedStatement(stmt, expanded);
+                outer.AppendExpandedStatement(stmt, expanded);
             }
             return visited.WithStatements(SyntaxFactory.List(expanded));
         }
@@ -315,7 +304,7 @@ internal sealed class SidemarkSyntaxRewriter : CSharpSyntaxRewriter
         public override SyntaxNode? VisitCatchClause(CatchClauseSyntax node)
         {
             var visited = (CatchClauseSyntax)base.VisitCatchClause(node)!;
-            if (_outer.FindCatchAnnotation(visited) is null || visited.Block is null)
+            if (outer.FindCatchAnnotation(visited) is null || visited.Block is null)
             {
                 return visited;
             }

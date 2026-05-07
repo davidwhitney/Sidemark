@@ -1,4 +1,3 @@
-using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -6,23 +5,14 @@ namespace Sidemark.Internal;
 
 internal static class DirectiveMatcher
 {
-    public static string? MatchActivity(SyntaxTrivia trivia, DirectivePatterns patterns)
-    {
-        if (MatchActivityEvent(trivia, patterns) != null) return null;
-        return TryMatch(trivia, patterns.ActivityPattern);
-    }
+    public static string? MatchActivity(SyntaxTrivia trivia, DirectivePatterns patterns) =>
+        MatchActivityEvent(trivia, patterns) != null ? null : TryMatch(trivia, patterns.ActivityPattern);
 
-    public static string? MatchTag(SyntaxTrivia trivia, DirectivePatterns patterns)
-    {
-        if (MatchActivityEvent(trivia, patterns) != null) return null;
-        return TryMatch(trivia, patterns.TagPattern);
-    }
+    public static string? MatchTag(SyntaxTrivia trivia, DirectivePatterns patterns) =>
+        MatchActivityEvent(trivia, patterns) != null ? null : TryMatch(trivia, patterns.TagPattern);
 
-    public static string? MatchEvent(SyntaxTrivia trivia, DirectivePatterns patterns)
-    {
-        if (MatchActivityEvent(trivia, patterns) != null) return null;
-        return TryMatch(trivia, patterns.EventPattern);
-    }
+    public static string? MatchEvent(SyntaxTrivia trivia, DirectivePatterns patterns) =>
+        MatchActivityEvent(trivia, patterns) != null ? null : TryMatch(trivia, patterns.EventPattern);
 
     public static string? MatchActivityEvent(SyntaxTrivia trivia, DirectivePatterns patterns)
         => TryMatch(trivia, patterns.ActivityEventPattern);
@@ -39,6 +29,7 @@ internal static class DirectiveMatcher
         if (!trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)) return null;
 
         var text = trivia.ToString();
+        
         if (text.Length < pattern.Length) return null;
         if (!text.StartsWith(pattern, StringComparison.Ordinal)) return null;
 

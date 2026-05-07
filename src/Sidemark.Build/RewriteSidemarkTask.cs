@@ -14,7 +14,7 @@ namespace Sidemark.Build;
 public sealed class RewriteSidemarkTask : MSBuildTask
 {
     [Required]
-    public ITaskItem[] Sources { get; set; } = Array.Empty<ITaskItem>();
+    public ITaskItem[] Sources { get; set; } = [];
 
     [Required]
     public string OutputDirectory { get; set; } = string.Empty;
@@ -24,10 +24,10 @@ public sealed class RewriteSidemarkTask : MSBuildTask
     public bool Disabled { get; set; }
 
     [Output]
-    public ITaskItem[] RewrittenSources { get; set; } = Array.Empty<ITaskItem>();
+    public ITaskItem[] RewrittenSources { get; set; } = [];
 
     [Output]
-    public ITaskItem[] OriginalSources { get; set; } = Array.Empty<ITaskItem>();
+    public ITaskItem[] OriginalSources { get; set; } = [];
 
     public override bool Execute()
     {

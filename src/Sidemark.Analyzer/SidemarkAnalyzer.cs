@@ -17,13 +17,14 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
     private const string CompoundPattern = "//?!";
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(
-            Diagnostics.TagOnNonLocalDeclaration,
+    [
+        Diagnostics.TagOnNonLocalDeclaration,
             Diagnostics.EventDirectiveMissingName,
             Diagnostics.DirectiveOnUnsupportedMember,
             Diagnostics.CompoundMarkerOffSignature,
             Diagnostics.DuplicateTagKey,
-            Diagnostics.CatchAnnotationHasIgnoredPayload);
+            Diagnostics.CatchAnnotationHasIgnoredPayload
+    ];
 
     public override void Initialize(AnalysisContext context)
     {

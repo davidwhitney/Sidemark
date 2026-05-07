@@ -8,12 +8,8 @@ public sealed class DirectivePatterns
     public const string DefaultActivityEvent = "//?!";
 
     public string ActivityPattern { get; set; } = DefaultActivity;
-
     public string TagPattern { get; set; } = DefaultTag;
-
     public string EventPattern { get; set; } = DefaultEvent;
-
     public string ActivityEventPattern { get; set; } = DefaultActivityEvent;
-
     public static DirectivePatterns Default => new();
 }

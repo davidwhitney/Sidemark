@@ -7,7 +7,6 @@ namespace Sidemark.Internal;
 internal sealed class ResolvedConfiguration
 {
     public string? SourceExpression { get; set; }
-
     public DirectivePatterns Patterns { get; set; } = new();
 }
 
@@ -19,9 +18,16 @@ internal static class ConfigurationResolver
         foreach (var root in roots)
         {
             configTypeName = FindConfigTypeName(root);
-            if (configTypeName != null) break;
+            if (configTypeName != null)
+            {
+                break;
+            }
         }
-        if (configTypeName == null) return null;
+        
+        if (configTypeName == null)
+        {
+            return null;
+        }
 
         var result = new ResolvedConfiguration
         {
@@ -45,15 +51,27 @@ internal static class ConfigurationResolver
     {
         foreach (var attrList in root.DescendantNodes().OfType<AttributeListSyntax>())
         {
-            if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true) continue;
+            if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true)
+            {
+                continue;
+            }
+            
             foreach (var attr in attrList.Attributes)
             {
                 var name = attr.Name.ToString();
                 var last = name.Substring(name.LastIndexOf('.') + 1);
-                if (last is not "Sidemark" and not "SidemarkAttribute") continue;
+                if (last is not "Sidemark" and not "SidemarkAttribute")
+                {
+                    continue;
+                }
 
                 var args = attr.ArgumentList?.Arguments;
-                if (args is null || args.Value.Count != 1) continue;
+                
+                if (args is null || args.Value.Count != 1)
+                {
+                    continue;
+                }
+                
                 if (args.Value[0].Expression is TypeOfExpressionSyntax typeOf)
                 {
                     return typeOf.Type.ToString();
@@ -68,7 +86,10 @@ internal static class ConfigurationResolver
         var lastSegment = typeName.Substring(typeName.LastIndexOf('.') + 1);
         foreach (var t in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
         {
-            if (t.Identifier.ValueText == lastSegment) return t;
+            if (t.Identifier.ValueText == lastSegment)
+            {
+                return t;
+            }
         }
         return null;
     }

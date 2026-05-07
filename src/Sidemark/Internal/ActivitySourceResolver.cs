@@ -8,7 +8,7 @@ internal static class ActivitySourceResolver
 {
     public static string? Resolve(SyntaxNode methodOrLocalFunction)
     {
-        SyntaxNode? node = methodOrLocalFunction;
+        var node = methodOrLocalFunction;
         while (node != null)
         {
             var attrLists = GetAttributeLists(node);
@@ -24,7 +24,10 @@ internal static class ActivitySourceResolver
                     foreach (var attr in attrList.Attributes)
                     {
                         var resolved = TryExtract(attr);
-                        if (resolved != null) return resolved;
+                        if (resolved != null)
+                        {
+                            return resolved;
+                        }
                     }
                 }
             }
@@ -47,9 +50,13 @@ internal static class ActivitySourceResolver
             foreach (var attr in attrList.Attributes)
             {
                 var resolved = TryExtract(attr);
-                if (resolved != null) return resolved;
+                if (resolved != null)
+                {
+                    return resolved;
+                }
             }
         }
+        
         return null;
     }
 
@@ -94,8 +101,9 @@ internal static class ActivitySourceResolver
                 return lit.Token.ValueText;
 
             case InvocationExpressionSyntax inv when IsNameOf(inv):
-                if (inv.ArgumentList.Arguments.Count != 1) return null;
-                return TerminalIdentifier(inv.ArgumentList.Arguments[0].Expression);
+                return inv.ArgumentList.Arguments.Count != 1
+                    ? null
+                    : TerminalIdentifier(inv.ArgumentList.Arguments[0].Expression);
 
             default:
                 return null;

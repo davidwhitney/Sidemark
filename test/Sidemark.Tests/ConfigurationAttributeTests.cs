@@ -239,7 +239,7 @@ public class ConfigurationAttributeTests : RewriterTestBase
             }
             """;
 
-        var resolved = SidemarkRewriter.ResolveAssemblyConfiguration(new[] { fileA, fileB });
+        var resolved = SidemarkRewriter.ResolveAssemblyConfiguration([fileA, fileB]);
         Assert.NotNull(resolved);
         Assert.Equal("MyConfig.ActivitySource", resolved!.SourceExpression);
         Assert.Equal("//hi", resolved.Patterns.ActivityPattern);

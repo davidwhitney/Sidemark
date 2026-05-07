@@ -312,12 +312,12 @@ public class SidemarkAnalyzerTests
         var tree = CSharpSyntaxTree.ParseText(source);
         var compilation = CSharpCompilation.Create(
             "TestAsm",
-            new[] { tree },
-            new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) },
+            [tree],
+            [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var withAnalyzers = compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new SidemarkAnalyzer()));
+            [new SidemarkAnalyzer()]);
 
         var all = await withAnalyzers.GetAnalyzerDiagnosticsAsync();
         return all;
