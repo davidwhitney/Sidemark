@@ -5,25 +5,21 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Sidemark.Internal;
 
 namespace Sidemark.Analyzer;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 {
-    private const string ActivityPattern = "//?";
-    private const string TagPattern = "//?";
-    private const string EventPattern = "//!";
-    private const string CompoundPattern = "//?!";
-
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
     [
         Diagnostics.TagOnNonLocalDeclaration,
-            Diagnostics.EventDirectiveMissingName,
-            Diagnostics.DirectiveOnUnsupportedMember,
-            Diagnostics.CompoundMarkerOffSignature,
-            Diagnostics.DuplicateTagKey,
-            Diagnostics.CatchAnnotationHasIgnoredPayload
+        Diagnostics.EventDirectiveMissingName,
+        Diagnostics.DirectiveOnUnsupportedMember,
+        Diagnostics.CompoundMarkerOffSignature,
+        Diagnostics.DuplicateTagKey,
+        Diagnostics.CatchAnnotationHasIgnoredPayload
     ];
 
     public override void Initialize(AnalysisContext context)
@@ -31,25 +27,38 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
 
-        context.RegisterSyntaxNodeAction(
-            AnalyzeMethodLike,
-            SyntaxKind.MethodDeclaration,
-            SyntaxKind.LocalFunctionStatement);
+        context.RegisterCompilationStartAction(start =>
+        {
+            var patterns = ResolvePatterns(start.Compilation, start.CancellationToken);
 
-        context.RegisterSyntaxNodeAction(
-            AnalyzeUnsupportedMember,
-            SyntaxKind.ConstructorDeclaration,
-            SyntaxKind.DestructorDeclaration,
-            SyntaxKind.OperatorDeclaration,
-            SyntaxKind.ConversionOperatorDeclaration,
-            SyntaxKind.GetAccessorDeclaration,
-            SyntaxKind.SetAccessorDeclaration,
-            SyntaxKind.AddAccessorDeclaration,
-            SyntaxKind.RemoveAccessorDeclaration,
-            SyntaxKind.InitAccessorDeclaration);
+            start.RegisterSyntaxNodeAction(
+                ctx => AnalyzeMethodLike(ctx, patterns),
+                SyntaxKind.MethodDeclaration,
+                SyntaxKind.LocalFunctionStatement);
+
+            start.RegisterSyntaxNodeAction(
+                ctx => AnalyzeUnsupportedMember(ctx, patterns),
+                SyntaxKind.ConstructorDeclaration,
+                SyntaxKind.DestructorDeclaration,
+                SyntaxKind.OperatorDeclaration,
+                SyntaxKind.ConversionOperatorDeclaration,
+                SyntaxKind.GetAccessorDeclaration,
+                SyntaxKind.SetAccessorDeclaration,
+                SyntaxKind.AddAccessorDeclaration,
+                SyntaxKind.RemoveAccessorDeclaration,
+                SyntaxKind.InitAccessorDeclaration);
+        });
     }
 
-    private static void AnalyzeMethodLike(SyntaxNodeAnalysisContext context)
+    private static DirectivePatterns ResolvePatterns(Compilation compilation, System.Threading.CancellationToken cancellationToken)
+    {
+        var roots = compilation.SyntaxTrees
+            .Select(t => t.GetRoot(cancellationToken))
+            .ToList();
+        return ConfigurationResolver.TryResolve(roots)?.Patterns ?? new DirectivePatterns();
+    }
+
+    private static void AnalyzeMethodLike(SyntaxNodeAnalysisContext context, DirectivePatterns patterns)
     {
         SyntaxToken? closeParen;
         BlockSyntax? body;
@@ -73,15 +82,14 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
         if (body is null)
         {
-            // Expression-bodied or abstract: signature directive cannot be applied.
-            ReportSignatureDirective(context, closeParen, openBrace: null, memberKind);
+            ReportSignatureDirective(context, closeParen, openBrace: null, memberKind, patterns);
             return;
         }
 
-        AnalyzeBody(context, body);
+        AnalyzeBody(context, body, patterns);
     }
 
-    private static void AnalyzeUnsupportedMember(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeUnsupportedMember(SyntaxNodeAnalysisContext context, DirectivePatterns patterns)
     {
         SyntaxToken? closeParen;
         SyntaxToken? openBrace;
@@ -110,18 +118,19 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
                 memberKind = "conversion operator";
                 break;
             case AccessorDeclarationSyntax a:
-                ReportAccessorSignatureDirective(context, a);
+                ReportAccessorSignatureDirective(context, a, patterns);
                 return;
             default:
                 return;
         }
 
-        ReportSignatureDirective(context, closeParen, openBrace, memberKind);
+        ReportSignatureDirective(context, closeParen, openBrace, memberKind, patterns);
     }
 
     private static void ReportAccessorSignatureDirective(
         SyntaxNodeAnalysisContext context,
-        AccessorDeclarationSyntax accessor)
+        AccessorDeclarationSyntax accessor,
+        DirectivePatterns patterns)
     {
         var checkTokens = new[] { accessor.Keyword, accessor.Body?.OpenBraceToken ?? default };
         foreach (var token in checkTokens)
@@ -129,7 +138,7 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
             if (token == default) continue;
             foreach (var t in token.TrailingTrivia)
             {
-                if (IsAnyDirectiveStart(t))
+                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), "accessor"));
@@ -138,7 +147,7 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
             }
             foreach (var t in token.LeadingTrivia)
             {
-                if (IsAnyDirectiveStart(t))
+                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), "accessor"));
@@ -152,13 +161,14 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         SyntaxNodeAnalysisContext context,
         SyntaxToken? closeParen,
         SyntaxToken? openBrace,
-        string memberKind)
+        string memberKind,
+        DirectivePatterns patterns)
     {
         if (closeParen is { } cp)
         {
             foreach (var t in cp.TrailingTrivia)
             {
-                if (IsAnyDirectiveStart(t))
+                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), memberKind));
@@ -170,7 +180,7 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         {
             foreach (var t in ob.LeadingTrivia)
             {
-                if (IsAnyDirectiveStart(t))
+                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), memberKind));
@@ -180,20 +190,20 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeBody(SyntaxNodeAnalysisContext context, BlockSyntax body)
+    private static void AnalyzeBody(SyntaxNodeAnalysisContext context, BlockSyntax body, DirectivePatterns patterns)
     {
         var tagKeySites = new Dictionary<string, List<Location>>();
 
         foreach (var stmt in body.DescendantNodes(_ => true).OfType<StatementSyntax>())
         {
             if (stmt is LocalFunctionStatementSyntax) continue;
-            CheckStatementTrivia(context, stmt, stmt.GetLeadingTrivia(), tagKeySites);
-            CheckStatementTrivia(context, stmt, stmt.GetTrailingTrivia(), tagKeySites);
+            CheckStatementTrivia(context, stmt, stmt.GetLeadingTrivia(), tagKeySites, patterns);
+            CheckStatementTrivia(context, stmt, stmt.GetTrailingTrivia(), tagKeySites, patterns);
         }
 
         foreach (var catchClause in body.DescendantNodes(_ => true).OfType<CatchClauseSyntax>())
         {
-            CheckCatchClause(context, catchClause);
+            CheckCatchClause(context, catchClause, patterns);
         }
 
         foreach (var entry in tagKeySites)
@@ -213,31 +223,26 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         SyntaxNodeAnalysisContext context,
         StatementSyntax stmt,
         SyntaxTriviaList trivia,
-        Dictionary<string, List<Location>> tagKeySites)
+        Dictionary<string, List<Location>> tagKeySites,
+        DirectivePatterns patterns)
     {
         foreach (var t in trivia)
         {
-            if (!t.IsKind(SyntaxKind.SingleLineCommentTrivia)) continue;
-            var text = t.ToString();
-            if (text.Length < 3 || text[0] != '/' || text[1] != '/') continue;
-
-            // Compound //?! has higher precedence than //? or //!.
-            if (text.StartsWith(CompoundPattern))
+            // Compound (e.g. //?!) is only valid on a method/local-function signature.
+            if (DirectiveMatcher.MatchActivityEvent(t, patterns) != null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.CompoundMarkerOffSignature, t.GetLocation()));
                 continue;
             }
 
-            var marker = text[2];
-            var payload = text.Length > 3 ? text.Substring(3).Trim() : string.Empty;
-
-            if (marker == '?')
+            var tagPayload = DirectiveMatcher.MatchTag(t, patterns);
+            if (tagPayload != null)
             {
                 if (stmt is LocalDeclarationStatementSyntax localDecl)
                 {
                     foreach (var v in localDecl.Declaration.Variables)
                     {
-                        var key = string.IsNullOrEmpty(payload) ? v.Identifier.ValueText : payload;
+                        var key = string.IsNullOrEmpty(tagPayload) ? v.Identifier.ValueText : tagPayload;
                         if (!tagKeySites.TryGetValue(key, out var sites))
                         {
                             sites = new List<Location>();
@@ -250,15 +255,18 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
                 {
                     context.ReportDiagnostic(Diagnostic.Create(Diagnostics.TagOnNonLocalDeclaration, t.GetLocation()));
                 }
+                continue;
             }
-            else if (marker == '!' && string.IsNullOrEmpty(payload))
+
+            var eventPayload = DirectiveMatcher.MatchEvent(t, patterns);
+            if (eventPayload != null && string.IsNullOrEmpty(eventPayload))
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.EventDirectiveMissingName, t.GetLocation()));
             }
         }
     }
 
-    private static void CheckCatchClause(SyntaxNodeAnalysisContext context, CatchClauseSyntax catchClause)
+    private static void CheckCatchClause(SyntaxNodeAnalysisContext context, CatchClauseSyntax catchClause, DirectivePatterns patterns)
     {
         var triviaSpots = new List<SyntaxTrivia>();
         if (catchClause.Declaration is { CloseParenToken: var cp })
@@ -272,23 +280,11 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
         foreach (var t in triviaSpots)
         {
-            if (!t.IsKind(SyntaxKind.SingleLineCommentTrivia)) continue;
-            var text = t.ToString();
-            if (text.Length < 3 || !text.StartsWith(TagPattern)) continue;
-            if (text.StartsWith(CompoundPattern)) continue; // out of scope here
-
-            var payload = text.Length > 3 ? text.Substring(3).Trim() : string.Empty;
+            var payload = DirectiveMatcher.MatchTag(t, patterns);
             if (!string.IsNullOrEmpty(payload))
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.CatchAnnotationHasIgnoredPayload, t.GetLocation()));
             }
         }
-    }
-
-    private static bool IsAnyDirectiveStart(SyntaxTrivia trivia)
-    {
-        if (!trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)) return false;
-        var text = trivia.ToString();
-        return text.Length >= 3 && text[0] == '/' && text[1] == '/' && (text[2] == '?' || text[2] == '!');
     }
 }

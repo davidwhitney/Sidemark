@@ -307,6 +307,41 @@ public class SidemarkAnalyzerTests
         Assert.DoesNotContain(diagnostics, d => d.Id == "SDM006");
     }
 
+    [Fact]
+    public async Task CustomTagPattern_FiresSdmOnNewMarkerNotOnDefault()
+    {
+        const string src = """
+            using Sidemark;
+
+            [assembly: Sidemark(typeof(Cfg))]
+
+            public static class Cfg
+            {
+                public const string TagPattern = "//@";
+            }
+
+            public class S
+            {
+                public void Do() //?
+                {
+                    DoStuff(); //@
+                    DoStuff(); //?
+                }
+                void DoStuff() {}
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+
+        // SDM001 fires on the `//@` line (the new tag pattern is now active).
+        Assert.Contains(diagnostics, d => d.Id == "SDM001" && SourceLine(d) == "        DoStuff(); //@");
+        // The `//?` line should no longer trigger SDM001 since `//?` is no longer the tag pattern.
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SDM001" && SourceLine(d) == "        DoStuff(); //?");
+
+        static string SourceLine(Diagnostic d) =>
+            d.Location.SourceTree?.GetText().Lines[d.Location.GetLineSpan().StartLinePosition.Line].ToString() ?? "";
+    }
+
     private static async Task<ImmutableArray<Diagnostic>> GetAnalyzerDiagnostics(string source)
     {
         var tree = CSharpSyntaxTree.ParseText(source);

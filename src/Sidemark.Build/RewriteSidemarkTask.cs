@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
-using Sidemark;
 using MSBuildTask = Microsoft.Build.Utilities.Task;
 
 namespace Sidemark.Build;
@@ -65,7 +64,9 @@ public sealed class RewriteSidemarkTask : MSBuildTask
             {
                 options.ActivitySourceExpression = resolvedConfig.SourceExpression!;
             }
+            
             options.Patterns = resolvedConfig.Patterns;
+            
             Log.LogMessage(MessageImportance.Normal,
                 $"Sidemark: using config source '{options.ActivitySourceExpression}', " +
                 $"patterns activity='{options.Patterns.ActivityPattern}' tag='{options.Patterns.TagPattern}' event='{options.Patterns.EventPattern}'");
@@ -114,7 +115,7 @@ public sealed class RewriteSidemarkTask : MSBuildTask
             File.WriteAllText(outputPath, output);
 
             var newItem = new TaskItem(outputPath);
-            foreach (string name in item.MetadataNames.Cast<string>())
+            foreach (var name in item.MetadataNames.Cast<string>())
             {
                 if (IsReservedMetadata(name)) continue;
                 newItem.SetMetadata(name, item.GetMetadata(name));
