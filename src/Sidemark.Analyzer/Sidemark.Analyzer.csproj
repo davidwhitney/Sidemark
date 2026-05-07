@@ -20,6 +20,7 @@
        a single self-contained DLL — analyzer load contexts don't reliably resolve sibling assemblies. -->
   <ItemGroup>
     <Compile Include="..\Sidemark\DirectivePatterns.cs" Link="Shared\DirectivePatterns.cs" />
+    <Compile Include="..\Sidemark\Internal\AttributeNameMatching.cs" Link="Shared\AttributeNameMatching.cs" />
     <Compile Include="..\Sidemark\Internal\DirectiveMatcher.cs" Link="Shared\DirectiveMatcher.cs" />
     <Compile Include="..\Sidemark\Internal\ConfigurationResolver.cs" Link="Shared\ConfigurationResolver.cs" />
   </ItemGroup>

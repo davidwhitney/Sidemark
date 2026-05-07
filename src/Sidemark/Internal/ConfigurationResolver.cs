@@ -60,9 +60,7 @@ internal static class ConfigurationResolver
             
             foreach (var attr in attrList.Attributes)
             {
-                var name = attr.Name.ToString();
-                var last = name.Substring(name.LastIndexOf('.') + 1);
-                if (last is not "Sidemark" and not "SidemarkAttribute")
+                if (!AttributeNameMatching.Matches(attr.Name.ToString(), "SidemarkAttribute"))
                 {
                     continue;
                 }
@@ -124,10 +122,10 @@ internal static class ConfigurationResolver
         var value = lit.Token.ValueText;
         switch (memberName)
         {
-            case "ActivityPattern": patterns.ActivityPattern = value; break;
-            case "TagPattern": patterns.TagPattern = value; break;
-            case "EventPattern": patterns.EventPattern = value; break;
-            case "ActivityEventPattern": patterns.ActivityEventPattern = value; break;
+            case nameof(DirectivePatterns.ActivityPattern): patterns.ActivityPattern = value; break;
+            case nameof(DirectivePatterns.TagPattern): patterns.TagPattern = value; break;
+            case nameof(DirectivePatterns.EventPattern): patterns.EventPattern = value; break;
+            case nameof(DirectivePatterns.ActivityEventPattern): patterns.ActivityEventPattern = value; break;
         }
     }
 }

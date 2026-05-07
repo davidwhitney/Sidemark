@@ -73,9 +73,7 @@ internal static class ActivitySourceResolver
 
     private static string? TryExtract(AttributeSyntax attr)
     {
-        var name = attr.Name.ToString();
-        var lastSegment = name.Substring(name.LastIndexOf('.') + 1);
-        if (lastSegment is not ("SidemarkActivitySource" or "SidemarkActivitySourceAttribute"))
+        if (!AttributeNameMatching.Matches(attr.Name.ToString(), nameof(SidemarkActivitySourceAttribute)))
         {
             return null;
         }

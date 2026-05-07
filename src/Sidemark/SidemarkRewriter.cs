@@ -91,9 +91,7 @@ public static class SidemarkRewriter
 
             foreach (var attr in attrList.Attributes)
             {
-                var name = attr.Name.ToString();
-                if (name is "DisableSidemark" or "DisableSidemarkAttribute"
-                    or "Sidemark.DisableSidemark" or "Sidemark.DisableSidemarkAttribute")
+                if (AttributeNameMatching.Matches(attr.Name.ToString(), nameof(DisableSidemarkAttribute)))
                 {
                     return true;
                 }
