@@ -31,8 +31,25 @@ public static class SidemarkRewriter
         }
 
         opts = MergeWithInFileConfig(opts, root);
+        return RewriteWithRoot(tree, root, opts);
+    }
 
-        var rewriter = new SidemarkSyntaxRewriter(opts);
+    /// Caller-side variant for hosts (e.g. the MSBuild task) that have already resolved the
+    /// assembly-level config across the whole project and don't need a per-file merge pass.
+    /// Cuts an extra DescendantNodes walk per file.
+    internal static SyntaxTree RewriteResolved(SyntaxTree tree, SidemarkOptions options)
+    {
+        var root = tree.GetRoot();
+        if (options.Disabled || HasDisableAttribute(root))
+        {
+            return tree;
+        }
+        return RewriteWithRoot(tree, root, options);
+    }
+
+    private static SyntaxTree RewriteWithRoot(SyntaxTree tree, SyntaxNode root, SidemarkOptions options)
+    {
+        var rewriter = new SidemarkSyntaxRewriter(options);
         var newRoot = rewriter.Visit(root);
         return tree.WithRootAndOptions(newRoot!, tree.Options);
     }
