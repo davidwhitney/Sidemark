@@ -72,13 +72,9 @@ public static class SidemarkRewriter
             return opts;
         }
 
-        return new SidemarkOptions
-        {
-            ActivitySourceExpression = resolved.SourceExpression ?? opts.ActivitySourceExpression,
-            Patterns = resolved.Patterns,
-            Disabled = opts.Disabled,
-            SourceFilePath = opts.SourceFilePath
-        };
+        return opts.With(
+            activitySourceExpression: resolved.SourceExpression,
+            patterns: resolved.Patterns);
     }
 
     private static bool HasDisableAttribute(SyntaxNode root)

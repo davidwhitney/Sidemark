@@ -19,7 +19,8 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         Diagnostics.DirectiveOnUnsupportedMember,
         Diagnostics.CompoundMarkerOffSignature,
         Diagnostics.DuplicateTagKey,
-        Diagnostics.CatchAnnotationHasIgnoredPayload
+        Diagnostics.CatchAnnotationHasIgnoredPayload,
+        Diagnostics.ReservedScopeVariableName
     ];
 
     public override void Initialize(AnalysisContext context)
@@ -62,6 +63,7 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
     {
         SyntaxToken? closeParen;
         BlockSyntax? body;
+        ParameterListSyntax? parameterList;
         string memberKind;
 
         switch (context.Node)
@@ -69,11 +71,13 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
             case MethodDeclarationSyntax m:
                 closeParen = m.ParameterList?.CloseParenToken;
                 body = m.Body;
+                parameterList = m.ParameterList;
                 memberKind = "method";
                 break;
             case LocalFunctionStatementSyntax fn:
                 closeParen = fn.ParameterList?.CloseParenToken;
                 body = fn.Body;
+                parameterList = fn.ParameterList;
                 memberKind = "local function";
                 break;
             default:
@@ -87,6 +91,72 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         }
 
         AnalyzeBody(context, body, patterns);
+
+        if (SignatureHasActivityInjection(closeParen, body.OpenBraceToken, patterns))
+        {
+            CheckReservedScopeVariableName(context, parameterList, body);
+        }
+    }
+
+    private static bool SignatureHasActivityInjection(SyntaxToken? closeParen, SyntaxToken openBrace, DirectivePatterns patterns)
+    {
+        bool ScanForActivity(SyntaxTriviaList list)
+        {
+            foreach (var t in list)
+            {
+                if (DirectiveMatcher.MatchActivityEvent(t, patterns) != null) return true;
+                if (DirectiveMatcher.MatchActivity(t, patterns) != null) return true;
+            }
+            return false;
+        }
+
+        if (closeParen is { } cp && ScanForActivity(cp.TrailingTrivia)) return true;
+        return ScanForActivity(openBrace.LeadingTrivia);
+    }
+
+    private static void CheckReservedScopeVariableName(
+        SyntaxNodeAnalysisContext context,
+        ParameterListSyntax? parameters,
+        BlockSyntax body)
+    {
+        const string reserved = SidemarkInjection.ScopeVariableName;
+
+        if (parameters != null)
+        {
+            foreach (var p in parameters.Parameters)
+            {
+                if (p.Identifier.ValueText == reserved)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Diagnostics.ReservedScopeVariableName, p.Identifier.GetLocation(), reserved));
+                }
+            }
+        }
+
+        // Don't descend into nested local functions: they have their own activity scope (or none),
+        // so a local named __sidemarkScope inside one doesn't collide with this method's injection.
+        foreach (var node in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax))
+        {
+            switch (node)
+            {
+                case VariableDeclaratorSyntax v when v.Identifier.ValueText == reserved:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Diagnostics.ReservedScopeVariableName, v.Identifier.GetLocation(), reserved));
+                    break;
+                case SingleVariableDesignationSyntax svd when svd.Identifier.ValueText == reserved:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Diagnostics.ReservedScopeVariableName, svd.Identifier.GetLocation(), reserved));
+                    break;
+                case ForEachStatementSyntax fe when fe.Identifier.ValueText == reserved:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Diagnostics.ReservedScopeVariableName, fe.Identifier.GetLocation(), reserved));
+                    break;
+                case CatchDeclarationSyntax cd when cd.Identifier.ValueText == reserved:
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Diagnostics.ReservedScopeVariableName, cd.Identifier.GetLocation(), reserved));
+                    break;
+            }
+        }
     }
 
     private static void AnalyzeUnsupportedMember(SyntaxNodeAnalysisContext context, DirectivePatterns patterns)
@@ -132,29 +202,12 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         AccessorDeclarationSyntax accessor,
         DirectivePatterns patterns)
     {
-        var checkTokens = new[] { accessor.Keyword, accessor.Body?.OpenBraceToken ?? default };
-        foreach (var token in checkTokens)
-        {
-            if (token == default) continue;
-            foreach (var t in token.TrailingTrivia)
-            {
-                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), "accessor"));
-                    return;
-                }
-            }
-            foreach (var t in token.LeadingTrivia)
-            {
-                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), "accessor"));
-                    return;
-                }
-            }
-        }
+        // For accessors the directive can land on the `get`/`set`/etc. keyword's trailing trivia, or
+        // on the open-brace's leading trivia.
+        ReportFirstSignatureDirective(context, "accessor", patterns,
+            accessor.Keyword.TrailingTrivia,
+            accessor.Body?.OpenBraceToken.TrailingTrivia ?? default,
+            accessor.Body?.OpenBraceToken.LeadingTrivia ?? default);
     }
 
     private static void ReportSignatureDirective(
@@ -164,21 +217,20 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
         string memberKind,
         DirectivePatterns patterns)
     {
-        if (closeParen is { } cp)
+        ReportFirstSignatureDirective(context, memberKind, patterns,
+            closeParen?.TrailingTrivia ?? default,
+            openBrace?.LeadingTrivia ?? default);
+    }
+
+    private static void ReportFirstSignatureDirective(
+        SyntaxNodeAnalysisContext context,
+        string memberKind,
+        DirectivePatterns patterns,
+        params SyntaxTriviaList[] triviaLists)
+    {
+        foreach (var list in triviaLists)
         {
-            foreach (var t in cp.TrailingTrivia)
-            {
-                if (DirectiveMatcher.MatchesAnyRole(t, patterns))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        Diagnostics.DirectiveOnUnsupportedMember, t.GetLocation(), memberKind));
-                    return;
-                }
-            }
-        }
-        if (openBrace is { } ob)
-        {
-            foreach (var t in ob.LeadingTrivia)
+            foreach (var t in list)
             {
                 if (DirectiveMatcher.MatchesAnyRole(t, patterns))
                 {
@@ -194,14 +246,15 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
     {
         var tagKeySites = new Dictionary<string, List<Location>>();
 
-        foreach (var stmt in body.DescendantNodes(_ => true).OfType<StatementSyntax>())
+        // Don't descend into nested local functions: they get their own AnalyzeMethodLike pass and
+        // their statements/catch clauses must not be attributed to the enclosing method.
+        foreach (var stmt in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<StatementSyntax>())
         {
-            if (stmt is LocalFunctionStatementSyntax) continue;
             CheckStatementTrivia(context, stmt, stmt.GetLeadingTrivia(), tagKeySites, patterns);
             CheckStatementTrivia(context, stmt, stmt.GetTrailingTrivia(), tagKeySites, patterns);
         }
 
-        foreach (var catchClause in body.DescendantNodes(_ => true).OfType<CatchClauseSyntax>())
+        foreach (var catchClause in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<CatchClauseSyntax>())
         {
             CheckCatchClause(context, catchClause, patterns);
         }

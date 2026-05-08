@@ -59,4 +59,13 @@ internal static class Diagnostics
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "On a catch clause, //? always emits SetStatus(Error, ex.Message). It has no name override, so any payload is silently discarded.");
+
+    public static readonly DiagnosticDescriptor ReservedScopeVariableName = new(
+        id: "SDM007",
+        title: "Variable name conflicts with the Sidemark-injected activity scope local",
+        messageFormat: "The name '{0}' conflicts with the local that Sidemark injects at the top of this instrumented method; rename to avoid the collision",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "When a method's signature carries an activity directive, the rewriter injects a `using var __sidemarkScope = ...StartActivity(...)` line at the top of the body. A user-declared local, parameter, or pattern variable with the same name in that method would collide.");
 }

@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
+using Sidemark.Internal;
 using MSBuildTask = Microsoft.Build.Utilities.Task;
 
 namespace Sidemark.Build;
@@ -45,7 +46,11 @@ public sealed class RewriteSidemarkTask : MSBuildTask
         foreach (var item in Sources)
         {
             var path = item.GetMetadata("FullPath");
-            if (string.IsNullOrEmpty(path)) path = item.ItemSpec;
+            if (string.IsNullOrEmpty(path))
+            {
+                path = item.ItemSpec;
+            }
+            
             try
             {
                 sourceContents[item] = File.ReadAllText(path);
@@ -97,13 +102,7 @@ public sealed class RewriteSidemarkTask : MSBuildTask
 
             // Per-file options carry the source path so the rewriter can emit #line directives
             // mapping the obj-folder output back to the original file for IDE debuggers.
-            var fileOptions = new SidemarkOptions
-            {
-                ActivitySourceExpression = options.ActivitySourceExpression,
-                Patterns = options.Patterns,
-                Disabled = options.Disabled,
-                SourceFilePath = path
-            };
+            var fileOptions = options.With(sourceFilePath: path);
 
             string output;
             try
@@ -123,7 +122,7 @@ public sealed class RewriteSidemarkTask : MSBuildTask
 
             // Prefix a #line 1 directive so anything outside modified method bodies (top-level statements,
             // class/member declarations) also maps back to the original file in the PDB.
-            var pathForDirective = path.Replace("\\", "/").Replace("\"", "\\\"");
+            var pathForDirective = SidemarkInjection.EscapePathForLineDirective(path);
             output = $"#line 1 \"{pathForDirective}\"\n{output}";
 
             var outputPath = Path.Combine(OutputDirectory, BuildOutputName(path));

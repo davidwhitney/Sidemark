@@ -11,4 +11,20 @@ public sealed class SidemarkOptions
     public string? SourceFilePath { get; set; }
 
     public static SidemarkOptions Default => new();
+
+    /// Returns a copy with selected fields replaced. Use this rather than hand-copying fields —
+    /// this object grows over time, and missed-field bugs (e.g. SourceFilePath) are easy to
+    /// introduce when reconstructing it.
+    public SidemarkOptions With(
+        string? activitySourceExpression = null,
+        DirectivePatterns? patterns = null,
+        bool? disabled = null,
+        string? sourceFilePath = null)
+        => new()
+        {
+            ActivitySourceExpression = activitySourceExpression ?? ActivitySourceExpression,
+            Patterns = patterns ?? Patterns,
+            Disabled = disabled ?? Disabled,
+            SourceFilePath = sourceFilePath ?? SourceFilePath
+        };
 }

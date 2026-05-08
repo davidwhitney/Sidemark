@@ -24,7 +24,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
     {
         if (!EmitLineDirectives) return stmt;
         var line = stmt.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-        var path = options.SourceFilePath!.Replace("\\", "/").Replace("\"", "\\\"");
+        var path = SidemarkInjection.EscapePathForLineDirective(options.SourceFilePath!);
         var directive = SyntaxFactory.ParseLeadingTrivia($"#line {line} \"{path}\"\n");
 
         // Insert the directive AFTER any leading newlines/blank-line trivia, so the line that
@@ -56,62 +56,56 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         return stmt.WithLeadingTrivia(newLeading);
     }
 
-    public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
-    {
-        if (node.Body is null)
-        {
-            return base.VisitMethodDeclaration(node);
-        }
+    public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node) =>
+        RewriteMethodLike(
+            node,
+            n => n.Body,
+            n => n.ParameterList?.CloseParenToken,
+            n => n.Identifier.ValueText,
+            (n, b) => n.WithBody(b),
+            () => base.VisitMethodDeclaration(node));
 
-        var (activityPayload, eventPayload) = FindSignatureDirectives(node.ParameterList?.CloseParenToken, node.Body.OpenBraceToken);
-        var hasBodyDirectives = HasAnyDirectiveInBody(node.Body);
+    public override SyntaxNode? VisitLocalFunctionStatement(LocalFunctionStatementSyntax node) =>
+        RewriteMethodLike(
+            node,
+            n => n.Body,
+            n => n.ParameterList?.CloseParenToken,
+            n => n.Identifier.ValueText,
+            (n, b) => n.WithBody(b),
+            () => base.VisitLocalFunctionStatement(node));
+
+    private SyntaxNode? RewriteMethodLike<T>(
+        T node,
+        Func<T, BlockSyntax?> getBody,
+        Func<T, SyntaxToken?> getCloseParen,
+        Func<T, string> getName,
+        Func<T, BlockSyntax, SyntaxNode> withBody,
+        Func<SyntaxNode?> visitBase)
+        where T : SyntaxNode
+    {
+        var body = getBody(node);
+        if (body is null) return visitBase();
+
+        var (activityPayload, eventPayload) = FindSignatureDirectives(getCloseParen(node), body.OpenBraceToken);
+        var hasBodyDirectives = HasAnyDirectiveInBody(body);
 
         if (activityPayload is null && eventPayload is null && !hasBodyDirectives)
         {
-            return base.VisitMethodDeclaration(node);
+            return visitBase();
         }
 
-        var activityName = !string.IsNullOrEmpty(activityPayload) ? activityPayload! : node.Identifier.ValueText;
+        var activityName = !string.IsNullOrEmpty(activityPayload) ? activityPayload! : getName(node);
         var entryEventName = eventPayload is null ? null
-            : !string.IsNullOrEmpty(eventPayload) ? eventPayload : node.Identifier.ValueText;
-        
+            : !string.IsNullOrEmpty(eventPayload) ? eventPayload : getName(node);
+
         var sourceExpression = ResolveActivitySource(node);
 
         var newBody = ExpandBody(
-            node.Body, activityName, sourceExpression,
+            body, activityName, sourceExpression,
             createActivity: activityPayload != null,
             entryEventName: entryEventName);
-        
-        return node.WithBody(newBody);
-    }
 
-    public override SyntaxNode? VisitLocalFunctionStatement(LocalFunctionStatementSyntax node)
-    {
-        if (node.Body is null)
-        {
-            return base.VisitLocalFunctionStatement(node);
-        }
-
-        var (activityPayload, eventPayload) = FindSignatureDirectives(node.ParameterList?.CloseParenToken, node.Body.OpenBraceToken);
-        var hasBodyDirectives = HasAnyDirectiveInBody(node.Body);
-
-        if (activityPayload is null && eventPayload is null && !hasBodyDirectives)
-        {
-            return base.VisitLocalFunctionStatement(node);
-        }
-
-        var activityName = !string.IsNullOrEmpty(activityPayload) ? activityPayload! : node.Identifier.ValueText;
-        var entryEventName = eventPayload is null ? null
-            : !string.IsNullOrEmpty(eventPayload) ? eventPayload : node.Identifier.ValueText;
-        
-        var sourceExpression = ResolveActivitySource(node);
-
-        var newBody = ExpandBody(
-            node.Body, activityName, sourceExpression,
-            createActivity: activityPayload != null,
-            entryEventName: entryEventName);
-        
-        return node.WithBody(newBody);
+        return withBody(node, newBody);
     }
 
     private (string? activityPayload, string? eventPayload) FindSignatureDirectives(
@@ -307,7 +301,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
     private static StatementSyntax BuildScopeStatement(string name, string sourceExpression)
     {
         return SyntaxFactory.ParseStatement(
-            $"using var __sidemarkScope = {sourceExpression}.StartActivity({Quote(name)});\n");
+            $"using var {SidemarkInjection.ScopeVariableName} = {sourceExpression}.StartActivity({Quote(name)});\n");
     }
 
     private static StatementSyntax BuildAddEvent(string name)

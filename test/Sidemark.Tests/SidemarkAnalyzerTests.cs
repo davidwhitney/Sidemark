@@ -342,6 +342,125 @@ public class SidemarkAnalyzerTests
             d.Location.SourceTree?.GetText().Lines[d.Location.GetLineSpan().StartLinePosition.Line].ToString() ?? "";
     }
 
+    [Fact]
+    public async Task LocalNamedSidemarkScopeInsideInstrumentedMethod_ReportsSDM007()
+    {
+        const string src = """
+            public class S
+            {
+                public void Do() //? MyOp
+                {
+                    var __sidemarkScope = 1;
+                }
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.Contains(diagnostics, d => d.Id == "SDM007");
+    }
+
+    [Fact]
+    public async Task ParameterNamedSidemarkScopeOnInstrumentedMethod_ReportsSDM007()
+    {
+        const string src = """
+            public class S
+            {
+                public void Do(int __sidemarkScope) //? MyOp
+                {
+                }
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.Contains(diagnostics, d => d.Id == "SDM007");
+    }
+
+    [Fact]
+    public async Task ForeachVariableNamedSidemarkScopeInsideInstrumentedMethod_ReportsSDM007()
+    {
+        const string src = """
+            using System.Collections.Generic;
+
+            public class S
+            {
+                public void Do(List<int> xs) //? MyOp
+                {
+                    foreach (var __sidemarkScope in xs) { }
+                }
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.Contains(diagnostics, d => d.Id == "SDM007");
+    }
+
+    [Fact]
+    public async Task SidemarkScopeInUninstrumentedMethod_ProducesNoSDM007()
+    {
+        // No //? on the signature → no scope local injected → no collision.
+        const string src = """
+            public class S
+            {
+                public void Do()
+                {
+                    var __sidemarkScope = 1;
+                }
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SDM007");
+    }
+
+    [Fact]
+    public async Task SidemarkScopeInsideNestedLocalFunction_ProducesNoSDM007()
+    {
+        // The nested local function has its own scope; the outer method's injection doesn't collide
+        // with a local declared inside the nested function.
+        const string src = """
+            public class S
+            {
+                public void Do() //? MyOp
+                {
+                    void Inner()
+                    {
+                        var __sidemarkScope = 1;
+                    }
+                    Inner();
+                }
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "SDM007");
+    }
+
+    [Fact]
+    public async Task DirectiveInsideNestedLocalFunction_DoesNotEmitDuplicateDiagnostics()
+    {
+        // SDM001 should fire exactly once on the //? inside the local function — once via the
+        // local function's own AnalyzeMethodLike pass, NOT also via the outer method's pass.
+        const string src = """
+            public class S
+            {
+                public void Outer() //?
+                {
+                    void Inner()
+                    {
+                        DoStuff(); //?
+                    }
+                    Inner();
+                }
+
+                void DoStuff() {}
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        var sdm001 = diagnostics.Where(d => d.Id == "SDM001").ToList();
+        Assert.Single(sdm001);
+    }
+
     private static async Task<ImmutableArray<Diagnostic>> GetAnalyzerDiagnostics(string source)
     {
         var tree = CSharpSyntaxTree.ParseText(source);

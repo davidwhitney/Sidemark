@@ -22,6 +22,10 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sidemark.Build" />
+  </ItemGroup>
+
   <!-- Sidemark.Build references Sidemark, so we cannot ProjectReference it back without a cycle.
        Build the analyzer and build-task projects explicitly before pack picks up their outputs. -->
   <Target Name="BuildSidemarkExtras" BeforeTargets="GenerateNuspec">

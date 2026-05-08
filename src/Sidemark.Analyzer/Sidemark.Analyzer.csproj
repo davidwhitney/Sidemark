@@ -23,6 +23,7 @@
     <Compile Include="..\Sidemark\Internal\AttributeNameMatching.cs" Link="Shared\AttributeNameMatching.cs" />
     <Compile Include="..\Sidemark\Internal\DirectiveMatcher.cs" Link="Shared\DirectiveMatcher.cs" />
     <Compile Include="..\Sidemark\Internal\ConfigurationResolver.cs" Link="Shared\ConfigurationResolver.cs" />
+    <Compile Include="..\Sidemark\Internal\SidemarkInjection.cs" Link="Shared\SidemarkInjection.cs" />
   </ItemGroup>
 
 </Project>
