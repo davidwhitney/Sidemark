@@ -80,7 +80,7 @@ public sealed class RewriteSidemarkTask : MSBuildTask
         if (resolved != null)
         {
             options = options.With(
-                activitySourceExpression: !string.IsNullOrEmpty(resolved.SourceExpression) ? resolved.SourceExpression : null,
+                activitySourceExpression: resolved.SourceExpression,
                 patterns: resolved.Patterns);
             Log.LogMessage(MessageImportance.Normal,
                 $"Sidemark: using config source '{options.ActivitySourceExpression}', " +
@@ -88,10 +88,11 @@ public sealed class RewriteSidemarkTask : MSBuildTask
         }
         else
         {
-            // Fall back to per-file [SidemarkActivitySource] attribute lookup.
-            foreach (var content in sourceContents.Values)
+            // Fall back to [assembly: SidemarkActivitySource(...)] lookup. Reuse the trees we already
+            // parsed during config resolution rather than re-parsing source text.
+            foreach (var tree in parsedTrees.Values)
             {
-                var fromAssembly = SidemarkRewriter.ResolveAssemblyActivitySource(content);
+                var fromAssembly = ActivitySourceResolver.ResolveAssemblyLevel(tree.GetRoot());
                 if (!string.IsNullOrEmpty(fromAssembly))
                 {
                     options = options.With(activitySourceExpression: fromAssembly);
@@ -220,30 +221,20 @@ public sealed class RewriteSidemarkTask : MSBuildTask
         return newItem;
     }
 
-    private static string ComputeOptionsHash(SidemarkOptions options)
-    {
-        var payload = string.Join("|",
+    private static string ComputeOptionsHash(SidemarkOptions options) =>
+        Sha1Hex(string.Join("|",
             options.ActivitySourceExpression,
             options.Disabled ? "1" : "0",
             options.Patterns.ActivityPattern,
             options.Patterns.TagPattern,
             options.Patterns.EventPattern,
-            options.Patterns.ActivityEventPattern);
-        using var sha = SHA1.Create();
-        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        var sb = new StringBuilder(bytes.Length * 2);
-        foreach (var b in bytes)
-        {
-            sb.Append(b.ToString("x2"));
-        }
-        return sb.ToString();
-    }
+            options.Patterns.ActivityEventPattern));
 
     private static string BuildOutputName(string sourcePath)
     {
         var name = Path.GetFileNameWithoutExtension(sourcePath);
         var ext = Path.GetExtension(sourcePath);
-        var hash = ShortHash(sourcePath);
+        var hash = Sha1Hex(sourcePath, byteCount: 4);
         return $"{name}.{hash}{ext}";
     }
 
@@ -257,12 +248,13 @@ public sealed class RewriteSidemarkTask : MSBuildTask
 
     private static bool IsReservedMetadata(string name) => ReservedMetadata.Contains(name);
 
-    private static string ShortHash(string s)
+    private static string Sha1Hex(string input, int byteCount = -1)
     {
         using var sha = SHA1.Create();
-        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(s));
-        var sb = new StringBuilder(8);
-        for (var i = 0; i < 4; i++)
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(input));
+        var n = byteCount < 0 ? bytes.Length : Math.Min(byteCount, bytes.Length);
+        var sb = new StringBuilder(n * 2);
+        for (var i = 0; i < n; i++)
         {
             sb.Append(bytes[i].ToString("x2"));
         }
