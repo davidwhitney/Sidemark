@@ -8,34 +8,27 @@ internal static class ActivitySourceResolver
 {
     public static string? Resolve(SyntaxNode methodOrLocalFunction)
     {
-        var node = methodOrLocalFunction;
-        while (node != null)
+        // Walk up from the method/local-function looking for a non-assembly [SidemarkActivitySource]
+        // attribute on it or any enclosing type. Assembly-level attributes are handled separately
+        // below; skip them in the walk so we don't double-handle.
+        for (var node = (SyntaxNode?)methodOrLocalFunction; node != null; node = node.Parent)
         {
             var attrLists = GetAttributeLists(node);
-            if (attrLists != null)
-            {
-                foreach (var attrList in attrLists)
-                {
-                    if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) == true)
-                    {
-                        continue;
-                    }
+            if (attrLists is null) continue;
 
-                    foreach (var attr in attrList.Attributes)
-                    {
-                        var resolved = TryExtract(attr);
-                        if (resolved != null)
-                        {
-                            return resolved;
-                        }
-                    }
+            foreach (var attrList in attrLists)
+            {
+                if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) == true) continue;
+
+                foreach (var attr in attrList.Attributes)
+                {
+                    var resolved = TryExtract(attr);
+                    if (resolved != null) return resolved;
                 }
             }
-            node = node.Parent;
         }
 
-        var root = methodOrLocalFunction.SyntaxTree.GetRoot();
-        return ResolveAssemblyLevel(root);
+        return ResolveAssemblyLevel(methodOrLocalFunction.SyntaxTree.GetRoot());
     }
 
     public static string? ResolveAssemblyLevel(SyntaxNode root)

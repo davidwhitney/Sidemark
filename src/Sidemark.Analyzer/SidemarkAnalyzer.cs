@@ -100,18 +100,13 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
     private static bool SignatureHasActivityInjection(SyntaxToken? closeParen, SyntaxToken openBrace, DirectivePatterns patterns)
     {
-        bool ScanForActivity(SyntaxTriviaList list)
+        var signatureTrivia = (closeParen?.TrailingTrivia ?? default).Concat(openBrace.LeadingTrivia);
+        foreach (var t in signatureTrivia)
         {
-            foreach (var t in list)
-            {
-                if (DirectiveMatcher.MatchActivityEvent(t, patterns) != null) return true;
-                if (DirectiveMatcher.MatchActivity(t, patterns) != null) return true;
-            }
-            return false;
+            if (DirectiveMatcher.MatchActivityEvent(t, patterns) != null) return true;
+            if (DirectiveMatcher.MatchActivity(t, patterns) != null) return true;
         }
-
-        if (closeParen is { } cp && ScanForActivity(cp.TrailingTrivia)) return true;
-        return ScanForActivity(openBrace.LeadingTrivia);
+        return false;
     }
 
     private static void CheckReservedScopeVariableName(
@@ -161,40 +156,32 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeUnsupportedMember(SyntaxNodeAnalysisContext context, DirectivePatterns patterns)
     {
-        SyntaxToken? closeParen;
-        SyntaxToken? openBrace;
-        string memberKind;
-
-        switch (context.Node)
+        if (context.Node is AccessorDeclarationSyntax accessor)
         {
-            case ConstructorDeclarationSyntax c:
-                closeParen = c.ParameterList?.CloseParenToken;
-                openBrace = c.Body?.OpenBraceToken;
-                memberKind = "constructor";
-                break;
-            case DestructorDeclarationSyntax d:
-                closeParen = d.ParameterList?.CloseParenToken;
-                openBrace = d.Body?.OpenBraceToken;
-                memberKind = "destructor";
-                break;
-            case OperatorDeclarationSyntax op:
-                closeParen = op.ParameterList?.CloseParenToken;
-                openBrace = op.Body?.OpenBraceToken;
-                memberKind = "operator";
-                break;
-            case ConversionOperatorDeclarationSyntax co:
-                closeParen = co.ParameterList?.CloseParenToken;
-                openBrace = co.Body?.OpenBraceToken;
-                memberKind = "conversion operator";
-                break;
-            case AccessorDeclarationSyntax a:
-                ReportAccessorSignatureDirective(context, a, patterns);
-                return;
-            default:
-                return;
+            ReportAccessorSignatureDirective(context, accessor, patterns);
+            return;
         }
 
-        ReportSignatureDirective(context, closeParen, openBrace, memberKind, patterns);
+        if (context.Node is not BaseMethodDeclarationSyntax method) return;
+
+        // Pattern-match the specific subtype to a human-readable name; the parameter list and body
+        // are accessed uniformly via the BaseMethodDeclarationSyntax base.
+        var memberKind = method switch
+        {
+            ConstructorDeclarationSyntax => "constructor",
+            DestructorDeclarationSyntax => "destructor",
+            ConversionOperatorDeclarationSyntax => "conversion operator",
+            OperatorDeclarationSyntax => "operator",
+            _ => null
+        };
+        if (memberKind is null) return;
+
+        ReportSignatureDirective(
+            context,
+            method.ParameterList?.CloseParenToken,
+            method.Body?.OpenBraceToken,
+            memberKind,
+            patterns);
     }
 
     private static void ReportAccessorSignatureDirective(

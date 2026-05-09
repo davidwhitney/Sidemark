@@ -62,14 +62,8 @@ public static class SidemarkRewriter
 
     /// True when any of the supplied roots contains `[assembly: DisableSidemark]`. The MSBuild
     /// task uses this to propagate the project-wide disable signal into options.Disabled.
-    internal static bool HasDisableAttribute(IEnumerable<SyntaxNode> roots)
-    {
-        foreach (var root in roots)
-        {
-            if (HasDisableAttribute(root)) return true;
-        }
-        return false;
-    }
+    internal static bool HasDisableAttribute(IEnumerable<SyntaxNode> roots) =>
+        roots.Any(HasDisableAttribute);
 
     private static bool HasDisableAttribute(SyntaxNode root)
     {
