@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Sidemark.Build" />
+    <InternalsVisibleTo Include="Sidemark.Tests" />
   </ItemGroup>
 
   <!-- Sidemark.Build references Sidemark, so we cannot ProjectReference it back without a cycle.

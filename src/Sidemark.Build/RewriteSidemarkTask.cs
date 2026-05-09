@@ -75,6 +75,15 @@ public sealed class RewriteSidemarkTask : MSBuildTask
             configRoots.Add(tree.GetRoot());
         }
 
+        // [assembly: DisableSidemark] is an assembly-level attribute; it applies project-wide
+        // even though the user declares it in one file. Aggregate across all parsed roots and
+        // short-circuit if any source disables Sidemark.
+        if (bootOptions.Disabled || SidemarkRewriter.HasDisableAttribute(configRoots))
+        {
+            Log.LogMessage(MessageImportance.Normal, "Sidemark: disabled; skipping rewrite");
+            return true;
+        }
+
         var options = bootOptions;
         var resolved = ConfigurationResolver.TryResolve(configRoots);
         if (resolved != null)

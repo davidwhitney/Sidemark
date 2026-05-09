@@ -267,6 +267,32 @@ public class SidemarkRewriterTests : RewriterTestBase
     }
 
     [Fact]
+    public void HasDisableAttribute_OverMultipleRoots_ReturnsTrueIfAnyRootHasIt()
+    {
+        // [assembly: DisableSidemark] is project-wide. A consumer that has all the source roots
+        // should propagate the disable signal even when the attribute is in a different file
+        // from the one being rewritten.
+        const string disablingFile = "[assembly: Sidemark.DisableSidemark]";
+        const string instrumentedFile = """
+            public class S
+            {
+                public void Do() //?
+                {
+                    var x = 1; //?
+                }
+            }
+            """;
+
+        var roots = new[] { disablingFile, instrumentedFile }
+            .Select(s => Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(s).GetRoot())
+            .ToArray();
+
+        Assert.True(SidemarkRewriter.HasDisableAttribute(roots));
+        Assert.True(SidemarkRewriter.HasDisableAttribute(new[] { roots[0] }));
+        Assert.False(SidemarkRewriter.HasDisableAttribute(new[] { roots[1] }));
+    }
+
+    [Fact]
     public void OptionsDisabled_ShortCircuitsRewriting()
     {
         const string input = """

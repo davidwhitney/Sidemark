@@ -1,3 +1,7 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Sidemark.Internal;
+
 namespace Sidemark.Tests;
 
 public class ConfigurationAttributeTests : RewriterTestBase
@@ -222,7 +226,7 @@ public class ConfigurationAttributeTests : RewriterTestBase
     }
 
     [Fact]
-    public void ResolveAssemblyConfiguration_AcrossSources_FindsConfigInOtherFile()
+    public void ConfigurationResolver_AcrossRoots_FindsConfigInOtherFile()
     {
         const string fileA = """
             using Sidemark;
@@ -239,7 +243,11 @@ public class ConfigurationAttributeTests : RewriterTestBase
             }
             """;
 
-        var resolved = SidemarkRewriter.ResolveAssemblyConfiguration([fileA, fileB]);
+        var roots = new[] { fileA, fileB }
+            .Select(s => CSharpSyntaxTree.ParseText(s).GetRoot())
+            .ToList<SyntaxNode>();
+
+        var resolved = ConfigurationResolver.TryResolve(roots);
         Assert.NotNull(resolved);
         Assert.Equal("MyConfig.ActivitySource", resolved!.SourceExpression);
         Assert.Equal("//hi", resolved.Patterns.ActivityPattern);
