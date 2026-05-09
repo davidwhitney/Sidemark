@@ -65,23 +65,6 @@ public static class SidemarkRewriter
     internal static bool HasDisableAttribute(IEnumerable<SyntaxNode> roots) =>
         roots.Any(HasDisableAttribute);
 
-    private static bool HasDisableAttribute(SyntaxNode root)
-    {
-        foreach (var attrList in root.DescendantNodes().OfType<AttributeListSyntax>())
-        {
-            if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true)
-            {
-                continue;
-            }
-
-            foreach (var attr in attrList.Attributes)
-            {
-                if (AttributeNameMatching.Matches(attr.Name.ToString(), nameof(DisableSidemarkAttribute)))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
+    private static bool HasDisableAttribute(SyntaxNode root) =>
+        root.AssemblyAttributes().Any(a => a.MatchesType(nameof(DisableSidemarkAttribute)));
 }

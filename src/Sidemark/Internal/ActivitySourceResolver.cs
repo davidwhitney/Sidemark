@@ -11,14 +11,14 @@ internal static class ActivitySourceResolver
         // Walk up from the method/local-function looking for a non-assembly [SidemarkActivitySource]
         // attribute on it or any enclosing type. Assembly-level attributes are handled separately
         // below; skip them in the walk so we don't double-handle.
-        for (var node = (SyntaxNode?)methodOrLocalFunction; node != null; node = node.Parent)
+        foreach (var node in methodOrLocalFunction.AncestorsAndSelf())
         {
             var attrLists = GetAttributeLists(node);
             if (attrLists is null) continue;
 
             foreach (var attrList in attrLists)
             {
-                if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) == true) continue;
+                if (attrList.IsAssemblyTarget()) continue;
 
                 foreach (var attr in attrList.Attributes)
                 {
@@ -33,23 +33,11 @@ internal static class ActivitySourceResolver
 
     public static string? ResolveAssemblyLevel(SyntaxNode root)
     {
-        foreach (var attrList in root.DescendantNodes().OfType<AttributeListSyntax>())
+        foreach (var attr in root.AssemblyAttributes())
         {
-            if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true)
-            {
-                continue;
-            }
-
-            foreach (var attr in attrList.Attributes)
-            {
-                var resolved = TryExtract(attr);
-                if (resolved != null)
-                {
-                    return resolved;
-                }
-            }
+            var resolved = TryExtract(attr);
+            if (resolved != null) return resolved;
         }
-        
         return null;
     }
 
@@ -66,10 +54,7 @@ internal static class ActivitySourceResolver
 
     private static string? TryExtract(AttributeSyntax attr)
     {
-        if (!AttributeNameMatching.Matches(attr.Name.ToString(), nameof(SidemarkActivitySourceAttribute)))
-        {
-            return null;
-        }
+        if (!attr.MatchesType(nameof(SidemarkActivitySourceAttribute))) return null;
 
         var args = attr.ArgumentList?.Arguments;
         if (args is null || args.Value.Count < 2) return null;

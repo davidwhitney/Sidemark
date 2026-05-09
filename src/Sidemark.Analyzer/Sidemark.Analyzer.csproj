@@ -24,6 +24,7 @@
     <Compile Include="..\Sidemark\Internal\DirectiveMatcher.cs" Link="Shared\DirectiveMatcher.cs" />
     <Compile Include="..\Sidemark\Internal\ConfigurationResolver.cs" Link="Shared\ConfigurationResolver.cs" />
     <Compile Include="..\Sidemark\Internal\SidemarkInjection.cs" Link="Shared\SidemarkInjection.cs" />
+    <Compile Include="..\Sidemark\Internal\SyntaxExtensions.cs" Link="Shared\SyntaxExtensions.cs" />
   </ItemGroup>
 
 </Project>

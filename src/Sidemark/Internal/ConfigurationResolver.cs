@@ -51,31 +51,16 @@ internal static class ConfigurationResolver
 
     private static string? FindConfigTypeName(SyntaxNode root)
     {
-        foreach (var attrList in root.DescendantNodes().OfType<AttributeListSyntax>())
+        foreach (var attr in root.AssemblyAttributes())
         {
-            if (attrList.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true)
-            {
-                continue;
-            }
-            
-            foreach (var attr in attrList.Attributes)
-            {
-                if (!AttributeNameMatching.Matches(attr.Name.ToString(), "SidemarkAttribute"))
-                {
-                    continue;
-                }
+            if (!attr.MatchesType("SidemarkAttribute")) continue;
 
-                var args = attr.ArgumentList?.Arguments;
-                
-                if (args is null || args.Value.Count != 1)
-                {
-                    continue;
-                }
-                
-                if (args.Value[0].Expression is TypeOfExpressionSyntax typeOf)
-                {
-                    return typeOf.Type.ToString();
-                }
+            var args = attr.ArgumentList?.Arguments;
+            if (args is null || args.Value.Count != 1) continue;
+
+            if (args.Value[0].Expression is TypeOfExpressionSyntax typeOf)
+            {
+                return typeOf.Type.ToString();
             }
         }
         return null;
@@ -83,7 +68,7 @@ internal static class ConfigurationResolver
 
     private static TypeDeclarationSyntax? FindTypeDeclaration(SyntaxNode root, string typeName)
     {
-        var lastSegment = typeName.Substring(typeName.LastIndexOf('.') + 1);
+        var lastSegment = typeName.LastSegment();
         foreach (var t in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
         {
             if (t.Identifier.ValueText == lastSegment)

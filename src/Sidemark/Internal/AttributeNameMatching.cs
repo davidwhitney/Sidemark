@@ -10,7 +10,7 @@ internal static class AttributeNameMatching
     /// against the supplied attribute type name.
     public static bool Matches(string syntaxName, string attributeTypeName)
     {
-        var lastSegment = syntaxName.Substring(syntaxName.LastIndexOf('.') + 1);
+        var lastSegment = syntaxName.LastSegment();
         var shortName = attributeTypeName.EndsWith(AttributeSuffix, StringComparison.Ordinal)
             ? attributeTypeName.Substring(0, attributeTypeName.Length - AttributeSuffix.Length)
             : attributeTypeName;
