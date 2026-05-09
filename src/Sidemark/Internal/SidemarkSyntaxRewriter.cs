@@ -27,33 +27,24 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         var path = SidemarkInjection.EscapePathForLineDirective(options.SourceFilePath!);
         var directive = SyntaxFactory.ParseLeadingTrivia($"#line {line} \"{path}\"\n");
 
-        // Insert the directive AFTER any leading newlines/blank-line trivia, so the line that
-        // immediately follows the directive is the statement itself (mapped to `line`), not a
-        // blank line that would consume `line` and shift the statement to `line + 1`.
+        // Insert the directive between the leading blank-line trivia and the statement's indent,
+        // so the line immediately following the directive is the statement itself (mapped to
+        // `line`), not a blank line that would consume `line` and shift the statement to line+1.
         var existing = stmt.GetLeadingTrivia();
-        var lastEol = -1;
-        for (var i = existing.Count - 1; i >= 0; i--)
-        {
-            if (existing[i].IsKind(SyntaxKind.EndOfLineTrivia))
-            {
-                lastEol = i;
-                break;
-            }
-        }
-
-        SyntaxTriviaList newLeading;
-        if (lastEol >= 0)
-        {
-            var before = SyntaxFactory.TriviaList(existing.Take(lastEol + 1));
-            var after = SyntaxFactory.TriviaList(existing.Skip(lastEol + 1));
-            newLeading = before.AddRange(directive).AddRange(after);
-        }
-        else
-        {
-            newLeading = directive.AddRange(existing);
-        }
-
+        var indentStart = IndexAfterLastEol(existing);
+        var newLeading = SyntaxFactory.TriviaList(existing.Take(indentStart))
+            .AddRange(directive)
+            .AddRange(existing.Skip(indentStart));
         return stmt.WithLeadingTrivia(newLeading);
+    }
+
+    private static int IndexAfterLastEol(SyntaxTriviaList trivia)
+    {
+        for (var i = trivia.Count - 1; i >= 0; i--)
+        {
+            if (trivia[i].IsKind(SyntaxKind.EndOfLineTrivia)) return i + 1;
+        }
+        return 0;
     }
 
     public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node) =>
@@ -146,20 +137,19 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
 
     private bool HasAnyDirectiveInBody(BlockSyntax body)
     {
-        foreach (var stmt in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<StatementSyntax>())
+        foreach (var node in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax))
         {
-            foreach (var t in stmt.GetLeadingTrivia())
+            switch (node)
             {
-                if (DirectiveMatcher.MatchesAnyRole(t, Patterns)) return true;
+                case StatementSyntax stmt:
+                    foreach (var t in stmt.GetLeadingTrivia().Concat(stmt.GetTrailingTrivia()))
+                    {
+                        if (DirectiveMatcher.MatchesAnyRole(t, Patterns)) return true;
+                    }
+                    break;
+                case CatchClauseSyntax catchClause when FindCatchAnnotation(catchClause) != null:
+                    return true;
             }
-            foreach (var t in stmt.GetTrailingTrivia())
-            {
-                if (DirectiveMatcher.MatchesAnyRole(t, Patterns)) return true;
-            }
-        }
-        foreach (var catchClause in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<CatchClauseSyntax>())
-        {
-            if (FindCatchAnnotation(catchClause) != null) return true;
         }
         return false;
     }
@@ -250,16 +240,10 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
     private void AppendExpandedStatement(StatementSyntax stmt, List<StatementSyntax> output)
     {
         var indent = IndentOnly(stmt.GetLeadingTrivia());
+        var allTrivia = stmt.GetLeadingTrivia().Concat(stmt.GetTrailingTrivia());
 
-        foreach (var t in stmt.GetLeadingTrivia())
-        {
-            var name = DirectiveMatcher.MatchEvent(t, Patterns);
-            if (!string.IsNullOrEmpty(name))
-            {
-                output.Add(BuildAddEvent(name!).WithLeadingTrivia(HiddenLeading(indent)));
-            }
-        }
-        foreach (var t in stmt.GetTrailingTrivia())
+        // Events fire BEFORE the original statement.
+        foreach (var t in allTrivia)
         {
             var name = DirectiveMatcher.MatchEvent(t, Patterns);
             if (!string.IsNullOrEmpty(name))
@@ -270,26 +254,17 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
 
         output.Add(WrapOriginal(stmt));
 
+        // SetTag calls fire AFTER the original local declaration so the variable is in scope.
         if (stmt is LocalDeclarationStatementSyntax localDecl)
         {
-            var tagPayloads = new List<string?>();
-            foreach (var t in stmt.GetLeadingTrivia())
+            foreach (var t in allTrivia)
             {
-                var p = DirectiveMatcher.MatchTag(t, Patterns);
-                if (p != null) tagPayloads.Add(p);
-            }
+                var payload = DirectiveMatcher.MatchTag(t, Patterns);
+                if (payload is null) continue;
 
-            foreach (var t in stmt.GetTrailingTrivia())
-            {
-                var p = DirectiveMatcher.MatchTag(t, Patterns);
-                if (p != null) tagPayloads.Add(p);
-            }
-
-            foreach (var payload in tagPayloads)
-            {
                 foreach (var v in localDecl.Declaration.Variables)
                 {
-                    var key = string.IsNullOrEmpty(payload) ? v.Identifier.ValueText : payload!;
+                    var key = string.IsNullOrEmpty(payload) ? v.Identifier.ValueText : payload;
                     output.Add(BuildSetTag(key, v.Identifier.ValueText).WithLeadingTrivia(HiddenLeading(indent)));
                 }
             }

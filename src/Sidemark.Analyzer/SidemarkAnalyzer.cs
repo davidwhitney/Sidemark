@@ -248,15 +248,17 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
         // Don't descend into nested local functions: they get their own AnalyzeMethodLike pass and
         // their statements/catch clauses must not be attributed to the enclosing method.
-        foreach (var stmt in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<StatementSyntax>())
+        foreach (var node in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax))
         {
-            CheckStatementTrivia(context, stmt, stmt.GetLeadingTrivia(), tagKeySites, patterns);
-            CheckStatementTrivia(context, stmt, stmt.GetTrailingTrivia(), tagKeySites, patterns);
-        }
-
-        foreach (var catchClause in body.DescendantNodes(n => n is not LocalFunctionStatementSyntax).OfType<CatchClauseSyntax>())
-        {
-            CheckCatchClause(context, catchClause, patterns);
+            switch (node)
+            {
+                case StatementSyntax stmt:
+                    CheckStatementTrivia(context, stmt, tagKeySites, patterns);
+                    break;
+                case CatchClauseSyntax catchClause:
+                    CheckCatchClause(context, catchClause, patterns);
+                    break;
+            }
         }
 
         foreach (var entry in tagKeySites)
@@ -275,11 +277,10 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
     private static void CheckStatementTrivia(
         SyntaxNodeAnalysisContext context,
         StatementSyntax stmt,
-        SyntaxTriviaList trivia,
         Dictionary<string, List<Location>> tagKeySites,
         DirectivePatterns patterns)
     {
-        foreach (var t in trivia)
+        foreach (var t in stmt.GetLeadingTrivia().Concat(stmt.GetTrailingTrivia()))
         {
             // Compound (e.g. //?!) is only valid on a method/local-function signature.
             if (DirectiveMatcher.MatchActivityEvent(t, patterns) != null)
@@ -321,23 +322,19 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
     private static void CheckCatchClause(SyntaxNodeAnalysisContext context, CatchClauseSyntax catchClause, DirectivePatterns patterns)
     {
-        var triviaSpots = new List<SyntaxTrivia>();
-        if (catchClause.Declaration is { CloseParenToken: var cp })
+        void Check(SyntaxTriviaList list)
         {
-            triviaSpots.AddRange(cp.TrailingTrivia);
-        }
-        if (catchClause.Block?.OpenBraceToken is { } ob)
-        {
-            triviaSpots.AddRange(ob.LeadingTrivia);
-        }
-
-        foreach (var t in triviaSpots)
-        {
-            var payload = DirectiveMatcher.MatchTag(t, patterns);
-            if (!string.IsNullOrEmpty(payload))
+            foreach (var t in list)
             {
-                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.CatchAnnotationHasIgnoredPayload, t.GetLocation()));
+                var payload = DirectiveMatcher.MatchTag(t, patterns);
+                if (!string.IsNullOrEmpty(payload))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.CatchAnnotationHasIgnoredPayload, t.GetLocation()));
+                }
             }
         }
+
+        if (catchClause.Declaration is { } decl) Check(decl.CloseParenToken.TrailingTrivia);
+        if (catchClause.Block?.OpenBraceToken is { } ob) Check(ob.LeadingTrivia);
     }
 }
