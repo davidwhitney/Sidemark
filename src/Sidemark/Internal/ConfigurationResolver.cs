@@ -53,10 +53,16 @@ internal static class ConfigurationResolver
     {
         foreach (var attr in root.AssemblyAttributes())
         {
-            if (!attr.MatchesType("SidemarkAttribute")) continue;
+            if (!attr.MatchesType("SidemarkAttribute"))
+            {
+                continue;
+            }
 
             var args = attr.ArgumentList?.Arguments;
-            if (args is null || args.Value.Count != 1) continue;
+            if (args is null || args.Value.Count != 1)
+            {
+                continue;
+            }
 
             if (args.Value[0].Expression is TypeOfExpressionSyntax typeOf)
             {
@@ -69,14 +75,8 @@ internal static class ConfigurationResolver
     private static TypeDeclarationSyntax? FindTypeDeclaration(SyntaxNode root, string typeName)
     {
         var lastSegment = typeName.LastSegment();
-        foreach (var t in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
-        {
-            if (t.Identifier.ValueText == lastSegment)
-            {
-                return t;
-            }
-        }
-        return null;
+        return root.DescendantNodes().OfType<TypeDeclarationSyntax>()
+            .FirstOrDefault(t => t.Identifier.ValueText == lastSegment);
     }
 
     private static void ApplyPatternOverrides(TypeDeclarationSyntax typeDecl, DirectivePatterns patterns)

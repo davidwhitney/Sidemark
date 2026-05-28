@@ -1,4 +1,3 @@
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -51,7 +50,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         RewriteMethodLike(
             node,
             n => n.Body,
-            n => n.ParameterList?.CloseParenToken,
+            n => n.ParameterList.CloseParenToken,
             n => n.Identifier.ValueText,
             (n, b) => n.WithBody(b),
             () => base.VisitMethodDeclaration(node));
@@ -60,7 +59,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         RewriteMethodLike(
             node,
             n => n.Body,
-            n => n.ParameterList?.CloseParenToken,
+            n => n.ParameterList.CloseParenToken,
             n => n.Identifier.ValueText,
             (n, b) => n.WithBody(b),
             () => base.VisitLocalFunctionStatement(node));
@@ -105,6 +104,10 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         string? activity = null;
         string? evt = null;
 
+        if (closeParen is { } cp) Scan(cp.TrailingTrivia);
+        if (openBrace is { } ob) Scan(ob.LeadingTrivia);
+        return (activity, evt);
+
         void Scan(SyntaxTriviaList list)
         {
             foreach (var t in list)
@@ -112,8 +115,8 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                 var compound = DirectiveMatcher.MatchActivityEvent(t, Patterns);
                 if (compound != null)
                 {
-                    if (activity is null) activity = string.Empty;
-                    if (evt is null) evt = compound;
+                    activity ??= string.Empty;
+                    evt ??= compound;
                     continue;
                 }
 
@@ -122,6 +125,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                     var a = DirectiveMatcher.MatchActivity(t, Patterns);
                     if (a != null) activity = a;
                 }
+                
                 if (evt is null)
                 {
                     var e = DirectiveMatcher.MatchEvent(t, Patterns);
@@ -129,10 +133,6 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                 }
             }
         }
-
-        if (closeParen is { } cp) Scan(cp.TrailingTrivia);
-        if (openBrace is { } ob) Scan(ob.LeadingTrivia);
-        return (activity, evt);
     }
 
     private bool HasAnyDirectiveInBody(BlockSyntax body)
@@ -163,7 +163,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                 if (DirectiveMatcher.MatchTag(t, Patterns) != null) return t;
             }
         }
-        if (catchClause.Block?.OpenBraceToken is { } ob)
+        if (catchClause.Block.OpenBraceToken is { } ob)
         {
             foreach (var t in ob.LeadingTrivia)
             {
@@ -181,7 +181,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         bool createActivity, string? entryEventName)
     {
         var expander = new DirectiveExpander(this);
-        var expanded = (BlockSyntax)expander.Visit(body)!;
+        var expanded = (BlockSyntax)expander.Visit(body);
 
         if (!createActivity && entryEventName is null)
         {
@@ -197,9 +197,10 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
         {
             prepended.Add(BuildScopeStatement(activityName, sourceExpression).WithLeadingTrivia(HiddenLeading(indentTemplate)));
         }
-        if (entryEventName is { } evt)
+        
+        if (entryEventName != null)
         {
-            prepended.Add(BuildAddEvent(evt).WithLeadingTrivia(HiddenLeading(indentTemplate)));
+            prepended.Add(BuildAddEvent(entryEventName).WithLeadingTrivia(HiddenLeading(indentTemplate)));
         }
         prepended.AddRange(expanded.Statements);
         return expanded.WithStatements(SyntaxFactory.List(prepended));
@@ -240,7 +241,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
     private void AppendExpandedStatement(StatementSyntax stmt, List<StatementSyntax> output)
     {
         var indent = IndentOnly(stmt.GetLeadingTrivia());
-        var allTrivia = stmt.GetLeadingTrivia().Concat(stmt.GetTrailingTrivia());
+        var allTrivia = stmt.GetLeadingTrivia().Concat(stmt.GetTrailingTrivia()).ToArray();
 
         // Events fire BEFORE the original statement.
         foreach (var t in allTrivia)
@@ -307,7 +308,7 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
 
     private sealed class DirectiveExpander(SidemarkSyntaxRewriter outer) : CSharpSyntaxRewriter
     {
-        public override SyntaxNode? VisitBlock(BlockSyntax node)
+        public override SyntaxNode VisitBlock(BlockSyntax node)
         {
             var visited = (BlockSyntax)base.VisitBlock(node)!;
             var expanded = new List<StatementSyntax>();
@@ -318,10 +319,10 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
             return visited.WithStatements(SyntaxFactory.List(expanded));
         }
 
-        public override SyntaxNode? VisitCatchClause(CatchClauseSyntax node)
+        public override SyntaxNode VisitCatchClause(CatchClauseSyntax node)
         {
             var visited = (CatchClauseSyntax)base.VisitCatchClause(node)!;
-            if (outer.FindCatchAnnotation(visited) is null || visited.Block is null)
+            if (outer.FindCatchAnnotation(visited) is null)
             {
                 return visited;
             }
@@ -339,6 +340,6 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
             return visited.WithBlock(newBlock);
         }
 
-        public override SyntaxNode? VisitLocalFunctionStatement(LocalFunctionStatementSyntax node) => node;
+        public override SyntaxNode VisitLocalFunctionStatement(LocalFunctionStatementSyntax node) => node;
     }
 }
