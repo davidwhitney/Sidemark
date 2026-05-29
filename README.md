@@ -1,4 +1,4 @@
-# Sidemark
+# Sidemark - Active Telemetry Comments for C\#
 
 Sidemark is a C# library which expands the syntax of the language to write neater, non-intrusive instrumentation.
 

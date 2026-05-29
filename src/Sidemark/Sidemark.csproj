@@ -12,7 +12,7 @@
   <PropertyGroup>
     <PackageId>Sidemark</PackageId>
     <Version>0.1.0</Version>
-    <Description>Annotate methods with //? comments and Sidemark rewrites them into OpenTelemetry Activity instrumentation at build time. Ships the runtime attributes, the Roslyn analyzer, and the MSBuild rewriter as a single package.</Description>
+    <Description>Active Telemetry Comments for C#. Annotate methods with //? comments and Sidemark rewrites them into OpenTelemetry supporting Activity instrumentation at build time. Ships the runtime attributes, the Roslyn analyzer, and the MSBuild rewriter as a single package.</Description>
     <Authors>David Whitney</Authors>
     <Copyright>Copyright (c) 2026 David Whitney</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -20,7 +20,7 @@
     <RepositoryUrl>https://github.com/davidwhitney/Sidemark</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>opentelemetry;tracing;observability;activitysource;telemetry;instrumentation;roslyn;msbuild;source-rewriting</PackageTags>
+    <PackageTags>opentelemetry;tracing;observability;activitysource;telemetry;instrumentation;roslyn;msbuild;source-rewriting;otel</PackageTags>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackSidemarkExtras</TargetsForTfmSpecificContentInPackage>
     <NoWarn>$(NoWarn);NU5100</NoWarn>
