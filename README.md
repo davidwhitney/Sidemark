@@ -25,19 +25,31 @@ The framing is loosely inspired by Wallaby.js's *Live Annotations* - that featur
 
 It is, admittedly, a little bit of a strange idea to make comments **load bearing** in a way that they normally are not. But comments have long been associated with bit-rot and misinformation - using the in this way brings them back towards their original intent - letting them be a surface for information that programmers need when they're trying to understand their code, reimagined for a time when lots of programmers have to do this work while observing production systems.
 
-<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
+---
+
+## Contents
+
+- [Installation](#installation)
+- [Setup](#setup)
+- [Examples](#examples)
+- [Syntax](#syntax)
+- [Configuration model](#configuration-model)
+- [Disabling the rewriter](#disabling-the-rewriter)
+- [Analyzer](#analyzer)
+- [How it works](#how-it-works)
+- [A worked example](#a-worked-example)
 
 ---
 
 ## Installation
 
-Two packages, both targeting any .NET project that ships C#:
+Available on NuGet, targeting any .NET project that ships C#:
 
 ```bash
 dotnet add package Sidemark
 ```
 
-`Sidemark` brings in the attributes, the MSBuild task that runs before `CoreCompile`, and a tiny build-time Roslyn dependency. `Sidemark.Analyzer` adds IDE diagnostics that flag misused markers.
+`Sidemark` brings in the attributes, the MSBuild task that runs before `CoreCompile`, and a tiny build-time Roslyn dependency.
 
 ---
 
