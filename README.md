@@ -5,17 +5,25 @@ Sidemark is a C# library which expands the syntax of the language to write neate
 As techniques like OpenTelemetry have increasingly become standard, codebases are often littered with telemetry instrumentation, and the **bookkeeping** of that instrumentation can easily visually overwhelm the **intent** of the code.
 
 ```csharp
-// before
+// before - ugly, obtuse, who put that there
 var orderId = order.Id; // some logic to compute the order ID
 Activity.Current?.SetTag("orderId", orderId);
 
-// after
+// after - glorious, beautiful, basking in the light of the sun
 var orderId = order.Id; //?
 ```
 
-Sidemark is an answer to that problem - **non-invasive instrumentation** by introducing the concept of **"Active Comments"**. These are a small set of syntax extensions (`//?`, `//!`, `//?!`) become **ride-along annotations** - information that travels next to the code, gets read at build time, and turns into the equivalent `Activity` calls in the compiled output. The code you read stays the same. The telemetry API calls are generated, no longer competing with logic for your attention.
+Sidemark is an answer to that "code obfuscation" problem - **non-invasive instrumentation** by introducing the concept of **"Active Comments"**.
+
+These are a small set of syntax extensions (`//?`, `//!`, `//?!`) become **ride-along annotations** - information that travels next to the code, gets read at build time, and turns into the equivalent `Activity` calls in the compiled output. The code you read stays the same. The telemetry API calls are generated, no longer competing with logic for your attention.
 
 The framing is loosely inspired by Wallaby.js's *Live Annotations* - that feature treats comments as a surface for runtime debugging information, projecting variable values inline next to the code that produces them. Sidemark takes the same instinct in the other direction: comments as a *write* surface for instrumentation rather than a *read* surface for debug values. The shared idea is that comments are an under-used channel for information *about* code that isn't itself code, and that surfacing it there keeps the underlying logic legible.
+
+```
+*You:* "oh my god, this is horrible, why would you make comments executable?" I hate it!
+```
+
+It is, admittedly, a little bit of a strange idea to make comments **load bearing** in a way that they normally are not. But comments have long been associated with bit-rot and misinformation - using the in this way brings them back towards their original intent - letting them be a surface for information that programmers need when they're trying to understand their code, reimagined for a time when lots of programmers have to do this work while observing production systems.
 
 ---
 
