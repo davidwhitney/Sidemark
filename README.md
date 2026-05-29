@@ -356,6 +356,8 @@ When disabled, the rewriter is a no-op and your `//?` / `//!` comments are passe
 
 `Sidemark.Analyzer` adds diagnostics so misused markers light up in your IDE and your CI logs:
 
+There's nothing extra to install or switch on. The analyzer ships **inside the `Sidemark` package**, so `dotnet add package Sidemark` wires it into your build automatically — diagnostics surface both in the IDE and in command-line / CI builds with no extra configuration.
+
 | ID | When it fires |
 | --- | --- |
 | `SDM001` | `//?` is attached to a statement that is **not** a local variable declaration - there's nothing for `SetTag` to bind to. |
