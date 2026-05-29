@@ -19,11 +19,13 @@ These are a small set of syntax extensions (`//?`, `//!`, `//?!`) become **ride-
 
 The framing is loosely inspired by Wallaby.js's *Live Annotations* - that feature treats comments as a surface for runtime debugging information, projecting variable values inline next to the code that produces them. Sidemark takes the same instinct in the other direction: comments as a *write* surface for instrumentation rather than a *read* surface for debug values. The shared idea is that comments are an under-used channel for information *about* code that isn't itself code, and that surfacing it there keeps the underlying logic legible.
 
-```
+```text
 *You:* "oh my god, this is horrible, why would you make comments executable?" I hate it!
 ```
 
 It is, admittedly, a little bit of a strange idea to make comments **load bearing** in a way that they normally are not. But comments have long been associated with bit-rot and misinformation - using the in this way brings them back towards their original intent - letting them be a surface for information that programmers need when they're trying to understand their code, reimagined for a time when lots of programmers have to do this work while observing production systems.
+
+<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 
 ---
 
