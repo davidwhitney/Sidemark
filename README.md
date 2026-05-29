@@ -51,6 +51,15 @@ dotnet add package Sidemark
 
 `Sidemark` brings in the attributes, the MSBuild task that runs before `CoreCompile`, and a tiny build-time Roslyn dependency.
 
+### Requirements
+
+Sidemark rewrites your code with Roslyn at build time, borrowing the compiler that ships with your .NET SDK rather than bundling its own copy. That sets two requirements:
+
+- **Build SDK: .NET SDK 8.0.200 or newer.** The rewrite needs Roslyn 4.9.2+, which is the version that first shipped in the 8.0.2xx SDK band. Every SDK from there through the latest is supported.
+- **Target framework: anything compatible with `netstandard2.0`.** The runtime attributes assembly targets `netstandard2.0`, so modern .NET, .NET Framework 4.6.1+, Mono, and Unity all work — your own project can target whatever you like.
+
+The package adds no transitive NuGet dependencies to your app; it contributes only the marker attributes and build-time tooling.
+
 ---
 
 ## Setup
