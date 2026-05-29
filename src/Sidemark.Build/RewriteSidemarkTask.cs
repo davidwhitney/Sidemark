@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -28,6 +29,10 @@ public sealed class RewriteSidemarkTask : MSBuildTask
 
     public bool Disabled { get; set; }
 
+    // Directory of the host SDK's Roslyn (from $(RoslynTargetsPath)), used to resolve
+    // Microsoft.CodeAnalysis(.CSharp) when they aren't shipped alongside the task DLL.
+    public string? RoslynAssemblyPath { get; set; }
+
     [Output]
     public ITaskItem[] RewrittenSources { get; set; } = [];
 
@@ -35,6 +40,16 @@ public sealed class RewriteSidemarkTask : MSBuildTask
     public ITaskItem[] OriginalSources { get; set; } = [];
 
     public override bool Execute()
+    {
+        // Install the Roslyn resolver before any Roslyn-referencing code is JIT'd. ExecuteCore is
+        // kept separate (and not inlined) so its Microsoft.CodeAnalysis references don't force a
+        // load while Execute itself is being compiled.
+        RoslynAssemblyResolver.Ensure(RoslynAssemblyPath);
+        return ExecuteCore();
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private bool ExecuteCore()
     {
         Directory.CreateDirectory(OutputDirectory);
 

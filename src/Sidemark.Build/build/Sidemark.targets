@@ -25,7 +25,8 @@
         Sources="@(Compile)"
         OutputDirectory="$(SidemarkOutputDirectory)"
         ActivitySourceExpression="$(SidemarkActivitySource)"
-        Disabled="$(SidemarkDisable)">
+        Disabled="$(SidemarkDisable)"
+        RoslynAssemblyPath="$(RoslynTargetsPath)">
       <Output TaskParameter="RewrittenSources" ItemName="_SidemarkRewritten" />
       <Output TaskParameter="OriginalSources" ItemName="_SidemarkOriginal" />
     </RewriteSidemarkTask>

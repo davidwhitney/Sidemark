@@ -13,7 +13,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Build.Framework" Version="17.14.8" PrivateAssets="all" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.8" PrivateAssets="all" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <!-- Minimum (not pinned): the task borrows the host SDK's Roslyn at build time, so compile
+         against the lowest version it might encounter. 4.9 is the floor (first Roslyn shipping
+         System.Collections.Immutable 8.0.0, needed by shared collection-expression code). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="[4.9.2,)" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

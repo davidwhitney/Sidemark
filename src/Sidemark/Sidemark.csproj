@@ -41,7 +41,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <!-- Minimum (not pinned): the build task borrows whatever Roslyn the host SDK ships (>= this),
+         and the lower the floor the fewer SDKs the analyzer trips CS9057 on. 4.9 is the floor because
+         it's the first Roslyn to ship System.Collections.Immutable 8.0.0, which the analyzer's
+         collection expressions require (~.NET 8.0.200). -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="[4.9.2,)" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -63,8 +67,11 @@
        (A BeforeTargets="GenerateNuspec" hook runs too late - TFM content is gathered first.) -->
   <Target Name="PackSidemarkExtras" DependsOnTargets="BuildSidemarkExtras">
     <ItemGroup>
-      <!-- Resolve task DLLs into a separate item first so the glob evaluates in this target. -->
-      <_SidemarkTaskFiles Include="..\Sidemark.Build\bin\$(Configuration)\netstandard2.0\*.dll" />
+      <!-- Ship only our own assemblies. Roslyn (Microsoft.CodeAnalysis*) is borrowed from the host
+           SDK at build time via RoslynAssemblyResolver, and the System.* closure is already part of
+           the .NET runtime that hosts the build - bundling either would just bloat the package. -->
+      <_SidemarkTaskFiles Include="..\Sidemark.Build\bin\$(Configuration)\netstandard2.0\Sidemark.Build.dll" />
+      <_SidemarkTaskFiles Include="..\Sidemark.Build\bin\$(Configuration)\netstandard2.0\Sidemark.dll" />
       <TfmSpecificPackageFile Include="..\Sidemark.Analyzer\bin\$(Configuration)\netstandard2.0\Sidemark.Analyzer.dll">
         <PackagePath>analyzers/dotnet/cs/</PackagePath>
       </TfmSpecificPackageFile>
