@@ -12,4 +12,4 @@ It's a Roslyn rewriter wired into MSBuild (your source files are never touched; 
 
 It's a bit of a heresy to make comments load-bearing, but sometimes we need to rethink "normal form" to find something better.
 
-Code: https://github.com/davidwhitney/Sidemark · NuGet: https://www.nuget.org/packages/Sidemark
+Code: <https://github.com/davidwhitney/Sidemark> · NuGet: <https://www.nuget.org/packages/Sidemark>
