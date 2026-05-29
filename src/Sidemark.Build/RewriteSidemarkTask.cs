@@ -152,7 +152,7 @@ public sealed class RewriteSidemarkTask : MSBuildTask
                 return;
             }
 
-            // Parse — reuse the tree if the config-resolution pre-filter already parsed it.
+            // Parse - reuse the tree if the config-resolution pre-filter already parsed it.
             if (!parsedTrees.TryGetValue(item, out var tree))
             {
                 tree = CSharpSyntaxTree.ParseText(source);

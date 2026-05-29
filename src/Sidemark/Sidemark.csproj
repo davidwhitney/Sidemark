@@ -13,10 +13,32 @@
     <PackageId>Sidemark</PackageId>
     <Version>0.1.0</Version>
     <Description>Annotate methods with //? comments and Sidemark rewrites them into OpenTelemetry Activity instrumentation at build time. Ships the runtime attributes, the Roslyn analyzer, and the MSBuild rewriter as a single package.</Description>
+    <Authors>David Whitney</Authors>
+    <Copyright>Copyright (c) 2026 David Whitney</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/davidwhitney/Sidemark</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/davidwhitney/Sidemark</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>opentelemetry;tracing;observability;activitysource;telemetry;instrumentation;roslyn;msbuild;source-rewriting</PackageTags>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackSidemarkExtras</TargetsForTfmSpecificContentInPackage>
     <NoWarn>$(NoWarn);NU5100</NoWarn>
   </PropertyGroup>
+
+  <!-- Deterministic builds + Source Link for debuggable, reproducible packages. -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
@@ -28,17 +50,18 @@
   </ItemGroup>
 
   <!-- Sidemark.Build references Sidemark, so we cannot ProjectReference it back without a cycle.
-       Build the analyzer and build-task projects explicitly before pack picks up their outputs. -->
-  <Target Name="BuildSidemarkExtras" BeforeTargets="GenerateNuspec">
-    <MSBuild Projects="..\Sidemark.Analyzer\Sidemark.Analyzer.csproj"
-             Targets="Build"
-             Properties="Configuration=$(Configuration)" />
-    <MSBuild Projects="..\Sidemark.Build\Sidemark.Build.csproj"
+       Build the analyzer and build-task projects explicitly so their outputs exist when pack globs
+       them. These siblings must already be restored (restore the solution first, or pack runs after
+       a solution build) - packing Sidemark alone only restores Sidemark, which has no project refs. -->
+  <Target Name="BuildSidemarkExtras">
+    <MSBuild Projects="..\Sidemark.Analyzer\Sidemark.Analyzer.csproj;..\Sidemark.Build\Sidemark.Build.csproj"
              Targets="Build"
              Properties="Configuration=$(Configuration)" />
   </Target>
 
-  <Target Name="PackSidemarkExtras">
+  <!-- DependsOnTargets guarantees the siblings are built before the globs below evaluate.
+       (A BeforeTargets="GenerateNuspec" hook runs too late - TFM content is gathered first.) -->
+  <Target Name="PackSidemarkExtras" DependsOnTargets="BuildSidemarkExtras">
     <ItemGroup>
       <!-- Resolve task DLLs into a separate item first so the glob evaluates in this target. -->
       <_SidemarkTaskFiles Include="..\Sidemark.Build\bin\$(Configuration)\netstandard2.0\*.dll" />

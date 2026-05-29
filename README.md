@@ -1,73 +1,21 @@
 # Sidemark
 
-OpenTelemetry instrumentation — `ActivitySource.StartActivity`, `activity?.SetTag`, `activity?.AddEvent`, `activity?.SetStatus(ActivityStatusCode.Error, ex.Message)` — has a habit of taking over a file. A method that does one obvious thing turns into a wall of bookkeeping, and in review you spend half your time separating *what the code does* from *what we report about what the code does*. Intent gets buried in instrumentation; the lines that matter and the lines that observe them sit at the same visual weight, and the file reads heavier than it is.
+Sidemark is a C# library which expands the syntax of the language to write neater, non-intrusive instrumentation.
 
-Sidemark is an experiment in moving that bookkeeping into a layer the language already gives you and mostly ignores: comments. A small set of comment syntaxes (`//?`, `//!`, `//?!`) become **ride-along annotations** — information that travels next to the code, gets read at build time, and turns into the equivalent `Activity` calls in the compiled output. The code you read stays the code that does the work. The telemetry rides along, no longer competing with logic for your attention.
-
-The framing is loosely inspired by Wallaby.js's *Live Annotations* — that feature treats comments as a surface for runtime debugging information, projecting variable values inline next to the code that produces them. Sidemark takes the same instinct in the other direction: comments as a *write* surface for instrumentation rather than a *read* surface for debug values. The shared idea is that comments are an under-used channel for information *about* code that isn't itself code, and that surfacing it there keeps the underlying logic legible.
-
-In practice: drop a `//?` next to a variable to tag the current span with it. Drop a `//!` next to a statement to fire an event. Add a `//?` to a method signature when the method should *be* a span, or to a `catch` clause when failure should be recorded. Everything else is sugar on top.
-
-### Tags
+As techniques like OpenTelemetry have increasingly become standard, codebases are often littered with telemetry instrumentation, and the **bookkeeping** of that instrumentation can easily visually overwhelm the **intent** of the code.
 
 ```csharp
 // before
-var orderId = order.Id;
-var totalCents = order.Total * 100;
+var orderId = order.Id; // some logic to compute the order ID
 Activity.Current?.SetTag("orderId", orderId);
-Activity.Current?.SetTag("order.total_cents", totalCents);
 
 // after
-var orderId    = order.Id;             //?
-var totalCents = order.Total * 100;    //? order.total_cents
+var orderId = order.Id; //?
 ```
 
-### Events
+Sidemark is an answer to that problem - **non-invasive instrumentation** by introducing the concept of **"Active Comments"**. These are a small set of syntax extensions (`//?`, `//!`, `//?!`) become **ride-along annotations** - information that travels next to the code, gets read at build time, and turns into the equivalent `Activity` calls in the compiled output. The code you read stays the same. The telemetry API calls are generated, no longer competing with logic for your attention.
 
-```csharp
-// before
-Activity.Current?.AddEvent(new ActivityEvent("ApiCalled"));
-await CallExternalApi();
-
-// after
-await CallExternalApi(); //! ApiCalled
-```
-
-### Activities (extended)
-
-```csharp
-// before
-public async Task<Order> Checkout(Cart cart)
-{
-    using var activity = MyConfig.ActivitySource.StartActivity("Checkout");
-    // ...
-}
-
-// after
-public async Task<Order> Checkout(Cart cart) //?
-{
-    // ...
-}
-```
-
-### Exception handling (extended)
-
-```csharp
-// before
-catch (Exception ex)
-{
-    Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
-    throw;
-}
-
-// after
-catch (Exception ex) //?
-{
-    throw;
-}
-```
-
-It all happens at build time via a Roslyn rewriter wired into MSBuild. The compiler sees the rewritten source; runtime IL is identical to what you would have written by hand.
+The framing is loosely inspired by Wallaby.js's *Live Annotations* - that feature treats comments as a surface for runtime debugging information, projecting variable values inline next to the code that produces them. Sidemark takes the same instinct in the other direction: comments as a *write* surface for instrumentation rather than a *read* surface for debug values. The shared idea is that comments are an under-used channel for information *about* code that isn't itself code, and that surfacing it there keeps the underlying logic legible.
 
 ---
 
@@ -77,7 +25,6 @@ Two packages, both targeting any .NET project that ships C#:
 
 ```bash
 dotnet add package Sidemark
-dotnet add package Sidemark.Analyzer
 ```
 
 `Sidemark` brings in the attributes, the MSBuild task that runs before `CoreCompile`, and a tiny build-time Roslyn dependency. `Sidemark.Analyzer` adds IDE diagnostics that flag misused markers.
@@ -100,7 +47,7 @@ public static class OTelConfig
 }
 ```
 
-The configuration class needs to expose a `static` field or property named **exactly** `ActivitySource`. The rewriter generates calls against `OTelConfig.ActivitySource.StartActivity(...)` based on the type you point at — the `ActivitySource` member name is by convention.
+The configuration class needs to expose a `static` field or property named **exactly** `ActivitySource`. The rewriter generates calls against `OTelConfig.ActivitySource.StartActivity(...)` based on the type you point at - the `ActivitySource` member name is by convention.
 
 ### 2. Hook the source up to your tracer provider as you would normally
 
@@ -114,6 +61,79 @@ using var tracerProvider = Sdk.CreateTracerProviderBuilder()
 ### 3. Annotate methods
 
 That's it. Your `//?` and `//!` comments take effect on the next build.
+
+---
+
+## Examples
+
+### Tags
+
+This is the default usage syntax that you'll use most of the time, but you can also put `//?` on individual variable declarations to set tags without needing to wrap the whole method in an activity:
+
+```csharp
+// before
+var orderId = order.Id;
+var totalCents = order.Total * 100;
+Activity.Current?.SetTag("orderId", orderId);
+Activity.Current?.SetTag("order.total_cents", totalCents);
+
+// after
+var orderId    = order.Id;             //?
+var totalCents = order.Total * 100;    //? order.total_cents
+```
+
+### Events
+
+Events are supported on method signatures and on individual statements. The payload is required on statements, but optional on methods - if you leave it off, the method name is used as the event name.
+
+```csharp
+// before
+Activity.Current?.AddEvent(new ActivityEvent("ApiCalled"));
+await CallExternalApi();
+
+// after
+await CallExternalApi(); //! ApiCalled
+```
+
+### Activities (extended)
+
+Activities are created by putting `//?` on a method or local function signature. By default, the activity name is the method name, but you can override it with a payload:
+
+```csharp
+// before
+public async Task<Order> Checkout(Cart cart)
+{
+    using var activity = MyConfig.ActivitySource.StartActivity("Checkout");
+    // ...
+}
+
+// after
+public async Task<Order> Checkout(Cart cart) //?
+{
+    // ...
+}
+```
+
+### Exception handling (extended)
+
+One of the most common patterns is to set the activity status to error when an exception is caught. Sidemark supports this with a `//?` marker on a `catch` clause - the rewriter looks for the exception variable and emits the appropriate `SetStatus` call at the top of the catch block. If there is no exception variable, it emits a simpler `SetStatus` without the message argument.
+
+```csharp
+// before
+catch (Exception ex)
+{
+    Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message);
+    throw;
+}
+
+// after
+catch (Exception ex) //?
+{
+    throw;
+}
+```
+
+It all happens at build time via a Roslyn rewriter wired into MSBuild. The compiler sees the rewritten source; runtime IL is identical to what you would have written by hand.
 
 ---
 
@@ -132,15 +152,15 @@ Sidemark understands two markers, each of which behaves slightly differently dep
 | Statement (leading or trailing trivia) | `//!` | `Activity.Current?.AddEvent(...)` immediately before the statement. | Event name. Required. |
 | `catch` clause | `//?` | `Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message)` at catch entry (or without `.Message` if no exception variable is declared). | None. |
 
-A method or local function with no signature `//?` is **not** wrapped in a new activity — body directives still expand, but they target whatever `Activity.Current` is at the call site. If there is no ambient activity, the chained calls are no-ops.
+A method or local function with no signature `//?` is **not** wrapped in a new activity - body directives still expand, but they target whatever `Activity.Current` is at the call site. If there is no ambient activity, the chained calls are no-ops.
 
-### `//?` — annotation
+### `//?` - annotation
 
 | Position | Effect | Payload |
 | --- | --- | --- |
-| Method signature | Wraps the body in `using var __sidemarkScope = source.StartActivity(name)` — a new child of `Activity.Current`. | Activity name. Defaults to the method name. |
+| Method signature | Wraps the body in `using var __sidemarkScope = source.StartActivity(name)` - a new child of `Activity.Current`. | Activity name. Defaults to the method name. |
 | Local variable declaration | Emits `Activity.Current?.SetTag(key, variable)` immediately after the declaration. | Tag key. Defaults to the variable name. |
-| `catch` clause | Emits `Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message)` at the top of the catch block. | None — the exception variable name is read from the catch declaration. |
+| `catch` clause | Emits `Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message)` at the top of the catch block. | None - the exception variable name is read from the catch declaration. |
 
 ```csharp
 public void Process() //?                  // activity named "Process"
@@ -158,7 +178,7 @@ catch (Exception ex) //?                              // SetStatus(Error, ex.Mes
 
 If the catch declaration has no variable (`catch (Exception)` or just `catch`), the rewriter emits `SetStatus(Error)` without a message argument.
 
-### `//!` — event
+### `//!` - event
 
 | Position | Effect | Payload |
 | --- | --- | --- |
@@ -173,7 +193,7 @@ await CallApi();    //! ApiCalled            // event before the await
 DoExpensiveThing();                          // event before DoExpensiveThing()
 ```
 
-### `//?!` — compound (activity + entry event)
+### `//?!` - compound (activity + entry event)
 
 For the common case of "create an activity *and* emit an event when this method starts", `//?!` is shorthand for both:
 
@@ -205,7 +225,7 @@ public void Handle() //? OrderHandled
 
 ### What happens to a method with no signature `//?`
 
-A method without `//?` on its signature is **not** wrapped in a new activity — it just chains onto whatever `Activity.Current` is when it runs. Body directives still fire; they target the ambient activity.
+A method without `//?` on its signature is **not** wrapped in a new activity - it just chains onto whatever `Activity.Current` is when it runs. Body directives still fire; they target the ambient activity.
 
 ```csharp
 public void EnrichOrder()           // no //? - no new span
@@ -237,7 +257,7 @@ public static class OTelConfig
 }
 ```
 
-The pattern members are read **syntactically at build time** — they need to be string literal `const`, `static readonly`, or property initializers. If a pattern member isn't declared, the default is used.
+The pattern members are read **syntactically at build time** - they need to be string literal `const`, `static readonly`, or property initializers. If a pattern member isn't declared, the default is used.
 
 This is useful if `//?` or `//!` clash with an existing convention in your codebase, or if you'd like the markers to be more self-explanatory:
 
@@ -260,7 +280,7 @@ public async Task Checkout() //span
 }
 ```
 
-`ActivityPattern` and `TagPattern` may share a value (the default does) — context decides which one is meant. `ActivityEventPattern` is matched eagerly: when a piece of trivia matches the compound pattern, the rewriter does **not** also try to interpret it as a plain `ActivityPattern` or `EventPattern`, even if those would prefix-match too.
+`ActivityPattern` and `TagPattern` may share a value (the default does) - context decides which one is meant. `ActivityEventPattern` is matched eagerly: when a piece of trivia matches the compound pattern, the rewriter does **not** also try to interpret it as a plain `ActivityPattern` or `EventPattern`, even if those would prefix-match too.
 
 ### Per-class / per-method `ActivitySource` overrides
 
@@ -307,12 +327,12 @@ When disabled, the rewriter is a no-op and your `//?` / `//!` comments are passe
 
 | ID | When it fires |
 | --- | --- |
-| `SDM001` | `//?` is attached to a statement that is **not** a local variable declaration — there's nothing for `SetTag` to bind to. |
-| `SDM002` | `//!` on a body statement is missing a payload — events on statements need an explicit name. (Empty `//!` on a method signature is fine; it falls back to the method name.) |
+| `SDM001` | `//?` is attached to a statement that is **not** a local variable declaration - there's nothing for `SetTag` to bind to. |
+| `SDM002` | `//!` on a body statement is missing a payload - events on statements need an explicit name. (Empty `//!` on a method signature is fine; it falls back to the method name.) |
 | `SDM003` | A directive sits on a member the rewriter does not process: an expression-bodied method, a constructor, an accessor, an operator. The directive is silently ignored at build time. |
 | `SDM004` | `//?!` (the compound marker) is used outside a method or local-function signature. It does nothing in any other position. |
 | `SDM005` | Two `//?` directives in the same method resolve to the same tag key. `Activity.SetTag(key, …)` is last-write-wins, so the earlier value is dropped. |
-| `SDM006` | A `catch (Exception ex) //?` carries a payload after `//?`. The catch annotation doesn't take one — the payload is silently discarded. |
+| `SDM006` | A `catch (Exception ex) //?` carries a payload after `//?`. The catch annotation doesn't take one - the payload is silently discarded. |
 
 All rules are warnings, so they don't fail the build by default. Suppress per-occurrence with `#pragma warning disable SDM005` (or whichever rule) if you have a reason to keep something the analyzer doesn't like.
 
@@ -325,7 +345,7 @@ Sidemark runs as an MSBuild task that hooks into `BeforeTargets="CoreCompile"`. 
 A few practical consequences:
 
 - **The compiler sees only the rewritten files.** Stack traces and debugger line numbers point at the rewritten code in `obj/`, not at your annotated source. If this matters for your debugging flow, the rewritten files are human-readable and live next to the rest of the build artefacts.
-- **Comments are stripped from IL anyway.** The whole point of doing this in MSBuild rather than at runtime is that the comments need to be visible to Roslyn — they're trivia in the syntax tree. Once compiled, the IL is identical to what you'd have written by hand.
+- **Comments are stripped from IL anyway.** The whole point of doing this in MSBuild rather than at runtime is that the comments need to be visible to Roslyn - they're trivia in the syntax tree. Once compiled, the IL is identical to what you'd have written by hand.
 - **The analyzer runs against your *original* source in your IDE** (because the rewriter hasn't fired yet), and against the rewritten source during `dotnet build`. The directive comments are deliberately preserved in the rewritten output so the analyzer fires consistently in both surfaces.
 
 ---
@@ -373,4 +393,4 @@ public class Greeter
 }
 ```
 
-Running this produces a single `Greet` span per call, with `greeting`, `greeting.length`, and `emitted.at` tags, plus an `AboutToWrite` event — the equivalent of about thirty lines of explicit OTel code, written in five.
+Running this produces a single `Greet` span per call, with `greeting`, `greeting.length`, and `emitted.at` tags, plus an `AboutToWrite` event - the equivalent of about thirty lines of explicit OTel code, written in five.

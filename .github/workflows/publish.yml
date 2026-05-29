@@ -1,0 +1,58 @@
+name: Publish to NuGet
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version to publish (e.g. 1.2.3)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so Source Link can resolve commit metadata
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          VERSION="${VERSION#v}" # strip leading "v" from tags like v1.2.3
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        # Restores every project in the solution, including the analyzer/build siblings that
+        # packing Sidemark.csproj alone would not (it has no project references, by design).
+        run: dotnet restore Sidemark.slnx
+
+      - name: Pack
+        run: >
+          dotnet pack src/Sidemark/Sidemark.csproj
+          --configuration Release
+          --no-restore
+          --output ./artifacts
+          -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Push to NuGet.org
+        run: >
+          dotnet nuget push "./artifacts/*.nupkg"
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate

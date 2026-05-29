@@ -438,7 +438,7 @@ public class SidemarkAnalyzerTests
     [Fact]
     public async Task DirectiveInsideNestedLocalFunction_DoesNotEmitDuplicateDiagnostics()
     {
-        // SDM001 should fire exactly once on the //? inside the local function — once via the
+        // SDM001 should fire exactly once on the //? inside the local function - once via the
         // local function's own AnalyzeMethodLike pass, NOT also via the outer method's pass.
         const string src = """
             public class S
