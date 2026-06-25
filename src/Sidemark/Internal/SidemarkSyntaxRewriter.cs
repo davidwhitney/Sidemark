@@ -269,6 +269,18 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
                     output.Add(BuildSetTag(key, v.Identifier.ValueText).WithLeadingTrivia(HiddenLeading(indent)));
                 }
             }
+
+            foreach (var t in allTrivia)
+            {
+                var payload = DirectiveMatcher.MatchBaggage(t, Patterns);
+                if (payload is null) continue;
+
+                foreach (var v in localDecl.Declaration.Variables)
+                {
+                    var key = string.IsNullOrEmpty(payload) ? v.Identifier.ValueText : payload;
+                    output.Add(BuildSetBaggage(key, v.Identifier.ValueText).WithLeadingTrivia(HiddenLeading(indent)));
+                }
+            }
         }
     }
 
@@ -290,6 +302,12 @@ internal sealed class SidemarkSyntaxRewriter(SidemarkOptions options) : CSharpSy
     {
         return SyntaxFactory.ParseStatement(
             $"{ActivityCurrent}?.SetTag({Quote(key)}, {valueExpression});\n");
+    }
+
+    private static StatementSyntax BuildSetBaggage(string key, string valueExpression)
+    {
+        return SyntaxFactory.ParseStatement(
+            $"{ActivityCurrent}?.SetBaggage({Quote(key)}, {valueExpression});\n");
     }
 
     private static StatementSyntax BuildCatchSetStatus(string? exceptionVariable)

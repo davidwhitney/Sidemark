@@ -34,6 +34,10 @@ public abstract class RewriterTestBase
                 {
                     return Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Whitespace("");
                 }
+                if (t.StartsWith("//=>", System.StringComparison.Ordinal))
+                {
+                    return Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Whitespace("");
+                }
             }
             return base.VisitTrivia(trivia);
         }

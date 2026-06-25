@@ -765,4 +765,60 @@ public class SidemarkRewriterTests : RewriterTestBase
 
         AssertCSharpEquivalent(expected, Rewrite(input));
     }
+
+    [Fact]
+    public void LocalDeclarationWithBaggageComment_EmitsSetBaggageOnAmbientActivity()
+    {
+        const string input = """
+            public class S
+            {
+                public void Do() //?
+                {
+                    var correlationId = "abc"; //=>
+                }
+            }
+            """;
+
+        const string expected = """
+            public class S
+            {
+                public void Do()
+                {
+                    using var __sidemarkScope = ActivitySource.StartActivity("Do");
+                    var correlationId = "abc";
+                    System.Diagnostics.Activity.Current?.SetBaggage("correlationId", correlationId);
+                }
+            }
+            """;
+
+        AssertCSharpEquivalent(expected, Rewrite(input));
+    }
+
+    [Fact]
+    public void LocalDeclarationWithNamedBaggageComment_UsesProvidedKey()
+    {
+        const string input = """
+            public class S
+            {
+                public void Do() //?
+                {
+                    var correlationId = "abc"; //=> trace.id
+                }
+            }
+            """;
+
+        const string expected = """
+            public class S
+            {
+                public void Do()
+                {
+                    using var __sidemarkScope = ActivitySource.StartActivity("Do");
+                    var correlationId = "abc";
+                    System.Diagnostics.Activity.Current?.SetBaggage("trace.id", correlationId);
+                }
+            }
+            """;
+
+        AssertCSharpEquivalent(expected, Rewrite(input));
+    }
 }

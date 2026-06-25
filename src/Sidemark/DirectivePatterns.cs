@@ -6,10 +6,12 @@ public sealed class DirectivePatterns
     public const string DefaultTag = "//?";
     public const string DefaultEvent = "//!";
     public const string DefaultActivityEvent = "//?!";
+    public const string DefaultBaggage = "//=>";
 
     public string ActivityPattern { get; set; } = DefaultActivity;
     public string TagPattern { get; set; } = DefaultTag;
     public string EventPattern { get; set; } = DefaultEvent;
     public string ActivityEventPattern { get; set; } = DefaultActivityEvent;
+    public string BaggagePattern { get; set; } = DefaultBaggage;
     public static DirectivePatterns Default => new();
 }

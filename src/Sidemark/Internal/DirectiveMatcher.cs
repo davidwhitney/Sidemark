@@ -18,11 +18,15 @@ internal static class DirectiveMatcher
     public static string? MatchActivityEvent(SyntaxTrivia trivia, DirectivePatterns patterns)
         => TryMatch(trivia, patterns.ActivityEventPattern);
 
+    public static string? MatchBaggage(SyntaxTrivia trivia, DirectivePatterns patterns)
+        => TryMatch(trivia, patterns.BaggagePattern);
+
     public static bool MatchesAnyRole(SyntaxTrivia trivia, DirectivePatterns patterns)
         => MatchActivity(trivia, patterns) != null
             || MatchTag(trivia, patterns) != null
             || MatchEvent(trivia, patterns) != null
-            || MatchActivityEvent(trivia, patterns) != null;
+            || MatchActivityEvent(trivia, patterns) != null
+            || MatchBaggage(trivia, patterns) != null;
 
     private static string? TryMatch(SyntaxTrivia trivia, string pattern)
     {
