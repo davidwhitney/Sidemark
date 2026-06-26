@@ -180,6 +180,7 @@ Sidemark understands two markers, each of which behaves slightly differently dep
 | Method / local-function signature | `//!` | `Activity.Current?.AddEvent(...)` at body entry. | Event name. Defaults to the method name. |
 | Method / local-function signature | `//?!` | Both: creates a new activity *and* emits an entry event inside it. | Event name. Activity name is always the method name. Defaults to the method name. |
 | Local variable declaration | `//?` | `Activity.Current?.SetTag(key, variable)` after the declaration. | Tag key. Defaults to the variable name. |
+| Local variable declaration | `//=>` | `Activity.Current?.AddBaggage(key, value)` after the declaration, using the declared variable's value. | Baggage key. Defaults to the variable name. |
 | Statement (leading or trailing trivia) | `//!` | `Activity.Current?.AddEvent(...)` immediately before the statement. | Event name. Required. |
 | `catch` clause | `//?` | `Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message)` at catch entry (or without `.Message` if no exception variable is declared). | None. |
 
@@ -191,6 +192,7 @@ A method or local function with no signature `//?` is **not** wrapped in a new a
 | --- | --- | --- |
 | Method signature | Wraps the body in `using var __sidemarkScope = source.StartActivity(name)` - a new child of `Activity.Current`. | Activity name. Defaults to the method name. |
 | Local variable declaration | Emits `Activity.Current?.SetTag(key, variable)` immediately after the declaration. | Tag key. Defaults to the variable name. |
+| Local variable declaration | Emits `Activity.Current?.AddBaggage(key, value)` immediately after the declaration, using the declared variable's value converted to a string. | Baggage key. Defaults to the variable name. |
 | `catch` clause | Emits `Activity.Current?.SetStatus(ActivityStatusCode.Error, ex.Message)` at the top of the catch block. | None - the exception variable name is read from the catch declaration. |
 
 ```csharp
@@ -199,6 +201,8 @@ public void Process() //? order.processed  // activity named "order.processed"
 
 var customerId = LookupCustomer(); //?               // tag "customerId"
 var spend      = orderTotal;       //? customer.ltv  // tag "customer.ltv"
+var customerId = order.Id;         //=>              // baggage "customerId" = order.Id
+var region     = tenant.Region;    //=> geo.region   // baggage "geo.region" = tenant.Region
 
 try { /* ... */ }
 catch (Exception ex) //?                              // SetStatus(Error, ex.Message) at catch entry
@@ -208,6 +212,15 @@ catch (Exception ex) //?                              // SetStatus(Error, ex.Mes
 ```
 
 If the catch declaration has no variable (`catch (Exception)` or just `catch`), the rewriter emits `SetStatus(Error)` without a message argument.
+
+### `//=>` - baggage
+
+`//=>` is for local variable declarations. It emits `Activity.Current?.AddBaggage(...)` immediately after the declaration and uses the declared variable's value as the baggage value.
+
+```csharp
+var customerId = order.Id;      //=>              // baggage "customerId" = order.Id
+var regionCode = tenant.Region; //=> geo.region   // baggage "geo.region" = tenant.Region
+```
 
 ### `//!` - event
 
@@ -280,9 +293,10 @@ public static class OTelConfig
 {
     public static readonly ActivitySource ActivitySource = new("MyApp", "1.0.0");
 
-    // All four of these are optional. Defaults shown.
+    // All five of these are optional. Defaults shown.
     public const string ActivityPattern      = "//?";
     public const string TagPattern           = "//?";
+    public const string BaggagePattern       = "//=>";
     public const string EventPattern         = "//!";
     public const string ActivityEventPattern = "//?!";
 }
@@ -299,6 +313,7 @@ public static class OTelConfig
 
     public const string ActivityPattern      = "//span";
     public const string TagPattern           = "//tag";
+    public const string BaggagePattern       = "//bag";
     public const string EventPattern         = "//evt";
     public const string ActivityEventPattern = "//span!";
 }
@@ -307,6 +322,7 @@ public static class OTelConfig
 public async Task Checkout() //span
 {
     var orderId = order.Id;   //tag
+    var region = tenant.Region; //bag geo.region
     await Process(order);     //evt OrderProcessed
 }
 ```

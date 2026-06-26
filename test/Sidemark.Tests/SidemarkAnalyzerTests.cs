@@ -43,6 +43,23 @@ public class SidemarkAnalyzerTests
     }
 
     [Fact]
+    public async Task BaggageOnLocalDeclaration_ProducesNoDiagnostic()
+    {
+        const string src = """
+            public class S
+            {
+                public void Do()
+                {
+                    var x = 1; //=>
+                }
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.Empty(diagnostics);
+    }
+
+    [Fact]
     public async Task TagOnNonLocalDeclaration_ReportsSDM001()
     {
         const string src = """
@@ -51,6 +68,25 @@ public class SidemarkAnalyzerTests
                 public void Do() //?
                 {
                     DoStuff(); //?
+                }
+
+                void DoStuff() {}
+            }
+            """;
+
+        var diagnostics = await GetAnalyzerDiagnostics(src);
+        Assert.Contains(diagnostics, d => d.Id == "SDM001");
+    }
+
+    [Fact]
+    public async Task BaggageOnNonLocalDeclaration_ReportsSDM001()
+    {
+        const string src = """
+            public class S
+            {
+                public void Do() //?
+                {
+                    DoStuff(); //=>
                 }
 
                 void DoStuff() {}

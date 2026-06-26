@@ -30,7 +30,11 @@ public abstract class RewriterTestBase
             if (trivia.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SingleLineCommentTrivia))
             {
                 var t = trivia.ToString();
-                if (t.Length >= 3 && t[0] == '/' && t[1] == '/' && (t[2] == '!' || t[2] == '?'))
+                var isDirectiveComment =
+                    t.Length >= 3 && t[0] == '/' && t[1] == '/' && (t[2] == '!' || t[2] == '?')
+                    || t.Length >= 4 && t[0] == '/' && t[1] == '/' && t[2] == '=' && t[3] == '>';
+
+                if (isDirectiveComment)
                 {
                     return Microsoft.CodeAnalysis.CSharp.SyntaxFactory.Whitespace("");
                 }

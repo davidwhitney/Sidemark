@@ -276,20 +276,23 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
-            var tagPayload = DirectiveMatcher.MatchTag(t, patterns);
-            if (tagPayload != null)
+            if (IsLocalValueDirective(t, patterns, out _))
             {
                 if (stmt is LocalDeclarationStatementSyntax localDecl)
                 {
-                    foreach (var v in localDecl.Declaration.Variables)
+                    var tagPayload = DirectiveMatcher.MatchTag(t, patterns);
+                    if (tagPayload != null)
                     {
-                        var key = string.IsNullOrEmpty(tagPayload) ? v.Identifier.ValueText : tagPayload;
-                        if (!tagKeySites.TryGetValue(key, out var sites))
+                        foreach (var v in localDecl.Declaration.Variables)
                         {
-                            sites = new List<Location>();
-                            tagKeySites[key] = sites;
+                            var key = string.IsNullOrEmpty(tagPayload) ? v.Identifier.ValueText : tagPayload;
+                            if (!tagKeySites.TryGetValue(key, out var sites))
+                            {
+                                sites = new List<Location>();
+                                tagKeySites[key] = sites;
+                            }
+                            sites.Add(t.GetLocation());
                         }
-                        sites.Add(t.GetLocation());
                     }
                 }
                 else
@@ -323,5 +326,17 @@ public sealed class SidemarkAnalyzer : DiagnosticAnalyzer
 
         if (catchClause.Declaration is { } decl) Check(decl.CloseParenToken.TrailingTrivia);
         if (catchClause.Block?.OpenBraceToken is { } ob) Check(ob.LeadingTrivia);
+    }
+
+    private static bool IsLocalValueDirective(
+        SyntaxTrivia trivia,
+        DirectivePatterns patterns,
+        out string? payload)
+    {
+        payload = DirectiveMatcher.MatchTag(trivia, patterns);
+        if (payload != null) return true;
+
+        payload = DirectiveMatcher.MatchBaggage(trivia, patterns);
+        return payload != null;
     }
 }

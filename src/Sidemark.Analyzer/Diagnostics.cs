@@ -8,12 +8,12 @@ internal static class Diagnostics
 
     public static readonly DiagnosticDescriptor TagOnNonLocalDeclaration = new(
         id: "SDM001",
-        title: "//? tag directive must be attached to a local variable declaration",
-        messageFormat: "The //? tag directive must be attached to a local variable declaration; it has no effect here",
+        title: "Local value directive must be attached to a local variable declaration",
+        messageFormat: "This Sidemark local value directive must be attached to a local variable declaration; it has no effect here",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Tag directives derive the tag value from a local variable; they cannot be attached to other statements.");
+        description: "Sidemark local value directives derive their value from a local variable declaration. Tag (//?) and baggage (//=>) directives cannot be attached to other statements.");
 
     public static readonly DiagnosticDescriptor EventDirectiveMissingName = new(
         id: "SDM002",

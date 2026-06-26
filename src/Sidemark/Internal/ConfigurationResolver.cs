@@ -109,6 +109,7 @@ internal static class ConfigurationResolver
         {
             case nameof(DirectivePatterns.ActivityPattern): patterns.ActivityPattern = value; break;
             case nameof(DirectivePatterns.TagPattern): patterns.TagPattern = value; break;
+            case nameof(DirectivePatterns.BaggagePattern): patterns.BaggagePattern = value; break;
             case nameof(DirectivePatterns.EventPattern): patterns.EventPattern = value; break;
             case nameof(DirectivePatterns.ActivityEventPattern): patterns.ActivityEventPattern = value; break;
         }

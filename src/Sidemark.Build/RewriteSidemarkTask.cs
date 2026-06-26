@@ -225,10 +225,11 @@ public sealed class RewriteSidemarkTask : MSBuildTask
 
     private static bool HasAnyDirectivePattern(string source, DirectivePatterns patterns)
     {
-        // Pattern strings often overlap (e.g. "//?" is a substring of "//?!"); covering the four
+        // Pattern strings often overlap (e.g. "//?" is a substring of "//?!"); covering the five
         // distinct strings is fine and short-circuits on the first hit.
         return source.IndexOf(patterns.ActivityPattern, StringComparison.Ordinal) >= 0
             || source.IndexOf(patterns.TagPattern, StringComparison.Ordinal) >= 0
+            || source.IndexOf(patterns.BaggagePattern, StringComparison.Ordinal) >= 0
             || source.IndexOf(patterns.EventPattern, StringComparison.Ordinal) >= 0
             || source.IndexOf(patterns.ActivityEventPattern, StringComparison.Ordinal) >= 0;
     }
@@ -251,6 +252,7 @@ public sealed class RewriteSidemarkTask : MSBuildTask
             options.Disabled ? "1" : "0",
             options.Patterns.ActivityPattern,
             options.Patterns.TagPattern,
+            options.Patterns.BaggagePattern,
             options.Patterns.EventPattern,
             options.Patterns.ActivityEventPattern));
 

@@ -167,6 +167,34 @@ public class ConfigurationAttributeTests : RewriterTestBase
     }
 
     [Fact]
+    public void ConfigType_WithCustomBaggagePattern_AppliesToStatements()
+    {
+        const string input = """
+            using Sidemark;
+            using System.Diagnostics;
+
+            [assembly: Sidemark(typeof(MyConfig))]
+
+            public static class MyConfig
+            {
+                public static readonly ActivitySource ActivitySource = new("X", "1.0.0");
+                public const string BaggagePattern = "//bag";
+            }
+
+            public class S
+            {
+                public void Do() //?
+                {
+                    var x = 1; //bag order.id
+                }
+            }
+            """;
+
+        var output = Rewrite(input);
+        Assert.Contains("System.Diagnostics.Activity.Current?.AddBaggage(\"order.id\", System.Convert.ToString(x, System.Globalization.CultureInfo.InvariantCulture))", output);
+    }
+
+    [Fact]
     public void ConfigType_WithCustomActivityEventPattern_RecognizesCompoundMarker()
     {
         const string input = """
@@ -252,6 +280,7 @@ public class ConfigurationAttributeTests : RewriterTestBase
         Assert.Equal("MyConfig.ActivitySource", resolved!.SourceExpression);
         Assert.Equal("//hi", resolved.Patterns.ActivityPattern);
         Assert.Equal("//?", resolved.Patterns.TagPattern);
+        Assert.Equal("//=>", resolved.Patterns.BaggagePattern);
         Assert.Equal("//!", resolved.Patterns.EventPattern);
     }
 }

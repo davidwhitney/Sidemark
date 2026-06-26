@@ -126,6 +126,62 @@ public class SidemarkRewriterTests : RewriterTestBase
     }
 
     [Fact]
+    public void LocalDeclarationWithBaggageComment_AddsTheDeclaredValueToBaggage()
+    {
+        const string input = """
+            public class S
+            {
+                public void Do() //?
+                {
+                    var customerId = 456; //=>
+                }
+            }
+            """;
+
+        const string expected = """
+            public class S
+            {
+                public void Do()
+                {
+                    using var __sidemarkScope = ActivitySource.StartActivity("Do");
+                    var customerId = 456;
+                    System.Diagnostics.Activity.Current?.AddBaggage("customerId", System.Convert.ToString(customerId, System.Globalization.CultureInfo.InvariantCulture));
+                }
+            }
+            """;
+
+        AssertCSharpEquivalent(expected, Rewrite(input));
+    }
+
+    [Fact]
+    public void LocalDeclarationWithNamedBaggageComment_UsesExplicitKey()
+    {
+        const string input = """
+            public class S
+            {
+                public void Do() //?
+                {
+                    var x = "abc"; //=> friendly.Name
+                }
+            }
+            """;
+
+        const string expected = """
+            public class S
+            {
+                public void Do()
+                {
+                    using var __sidemarkScope = ActivitySource.StartActivity("Do");
+                    var x = "abc";
+                    System.Diagnostics.Activity.Current?.AddBaggage("friendly.Name", System.Convert.ToString(x, System.Globalization.CultureInfo.InvariantCulture));
+                }
+            }
+            """;
+
+        AssertCSharpEquivalent(expected, Rewrite(input));
+    }
+
+    [Fact]
     public void StatementWithTrailingEventComment_EmitsAddEventBeforeStatement()
     {
         const string input = """
